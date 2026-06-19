@@ -1,0 +1,113 @@
+table in
+	lineageTag: 304236a7-9673-4fe1-af6f-c57aea0974a5
+
+	measure 'Total Cost' = SUM('in'[Cost])
+		formatString: \$#,0.###############;(\$#,0.###############);\$#,0.###############
+		lineageTag: 8ef6fb8b-8202-48dc-a192-74f450445b68
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	measure 'Average Age' = AVERAGE('in'[Age])
+		formatString: 0
+		lineageTag: 72875206-404c-4475-9f36-a2c69f5604c4
+
+	measure 'Total Patients' = COUNT('in'[PatientID])
+		formatString: 0
+		lineageTag: 11c2192d-6896-40a6-b060-cbf2b1e9a5d6
+
+	column VisitDate
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 9f8f6248-2029-4782-8c98-8236a2911c74
+		summarizeBy: none
+		sourceColumn: VisitDate
+
+		variation Variation
+			isDefault
+			relationship: 6cef85e3-e90f-46d9-9393-5897e1084f95
+			defaultHierarchy: LocalDateTable_4beb135a-eee4-4046-9631-0013a4238641.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column PatientID
+		dataType: string
+		lineageTag: 08fa5d03-4004-4ded-ba1a-d2601876419f
+		summarizeBy: none
+		sourceColumn: PatientID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Age
+		dataType: int64
+		formatString: 0
+		lineageTag: 456869a7-67bc-450d-8661-4b260d54c9b7
+		summarizeBy: sum
+		sourceColumn: Age
+
+		annotation SummarizationSetBy = Automatic
+
+	column Gender
+		dataType: string
+		lineageTag: b15ecdbb-44ad-400e-9a21-cfac183e393a
+		summarizeBy: none
+		sourceColumn: Gender
+
+		annotation SummarizationSetBy = Automatic
+
+	column Diagnosis
+		dataType: string
+		lineageTag: 27b40aae-0392-4de1-8abc-5a2e5c0c3a35
+		summarizeBy: none
+		sourceColumn: Diagnosis
+
+		annotation SummarizationSetBy = Automatic
+
+	column Treatment
+		dataType: string
+		lineageTag: 6adcb65a-fcfd-4b96-ba4b-41a1329692d6
+		summarizeBy: none
+		sourceColumn: Treatment
+
+		annotation SummarizationSetBy = Automatic
+
+	column Doctor
+		dataType: string
+		lineageTag: 7c41120f-3742-469b-872e-9d383cb852c1
+		summarizeBy: none
+		sourceColumn: Doctor
+
+		annotation SummarizationSetBy = Automatic
+
+	column Cost
+		dataType: decimal
+		formatString: \$#,0.###############;(\$#,0.###############);\$#,0.###############
+		lineageTag: d408d42c-8ba3-46cf-a99c-e87455b02e42
+		summarizeBy: sum
+		sourceColumn: Cost
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	partition in = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\ingex\Downloads\WTF\Activities and Assignment\Health_Dirty.xlsx"), null, true),
+				    in_Sheet = Source{[Item="in",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(in_Sheet, [PromoteAllScalars=true]),
+				    #"Removed Columns" = Table.RemoveColumns(#"Promoted Headers",{"AGE RANGE"}),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Removed Columns",{{"Cost", Currency.Type}}),
+				    #"Changed Type with Locale" = Table.TransformColumnTypes(#"Changed Type1", {{"VisitDate", type date}}, "en-GB"),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Changed Type with Locale",{{"Age", Int64.Type}}),
+				    #"Replaced Value" = Table.ReplaceValue(#"Changed Type",null,"Unknown",Replacer.ReplaceValue,{"Diagnosis"}),
+				    #"Replaced Value1" = Table.ReplaceValue(#"Replaced Value",null,"Unassigned",Replacer.ReplaceValue,{"Doctor"})
+				in
+				    #"Replaced Value1"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
