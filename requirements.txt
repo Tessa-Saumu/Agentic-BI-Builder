@@ -1,12 +1,12 @@
 # Agent orchestration
 langgraph
 langchain-core
-langchain-anthropic
-langchain-openai
+langchain-google-genai    # <-- Added for Gemini
+langchain-mistralai       # <-- Replaced Groq with Mistral
 
 # LLM providers
-anthropic
-openai
+google-generativeai
+mistralai
 
 # Data
 pandas

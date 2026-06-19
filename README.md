@@ -92,7 +92,7 @@ This structure is reverse-engineered from a real `.pbip` export and modelled as 
 | Layer | Tools |
 |---|---|
 | Agent orchestration | LangGraph |
-| LLM | Anthropic Claude (claude-sonnet-4-20250514) or OpenAI GPT-4o |
+| LLM | Google Gemini (gemini-3.1-flash / gemini-3.1 Pro) or Mistral AI (open-mixtral-8x7b / mistral-large) |
 | Data profiling | pandas |
 | SQL execution | SQLite (sqlite3) |
 | Structured outputs | Pydantic |
@@ -118,7 +118,7 @@ This structure is reverse-engineered from a real `.pbip` export and modelled as 
 git clone https://github.com/your-username/agentic-bi-builder
 cd agentic-bi-builder
 pip install -r requirements.txt
-cp .env.example .env     # add your LLM API key (Anthropic or OpenAI)
+cp .env.example .env       # add your GOOGLE_API_KEY or MISTRAL_API_KEY
 python run_agent.py --input data/chinook.csv --output output/chinook_report
 ```
 
