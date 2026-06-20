@@ -301,10 +301,16 @@ this pattern repeats in `page.json` and `report.json` too):
 - **Literal values are always strings**, even for numbers/booleans:
   `"true"`, `"15D"` (the `D` suffix marks a double), `"'left'"` (single
   quotes inside the string mark a DAX string literal).
-- **Fixed for v1 of the compiler.** None of this affects whether data
-  renders correctly — it's cosmetic. Recommend hardcoding one sane
-  formatting block per visual type and not exposing it as a generation
-  target until the core pipeline works end-to-end.
+- **Confirmed decision: template, not generated.** None of this affects
+  whether data renders correctly — it's cosmetic. Per visual type
+  (`cardVisual`, `clusteredColumnChart`, `pivotTable`, etc.), hardcode one
+  `objects`/`visualContainerObjects` block straight from this sample and
+  reuse it verbatim for every visual of that type the compiler emits — the
+  same approach as the currency `PBI_FormatHint` annotation below. Only the
+  `query.queryState` field bindings and `position` need to vary per visual
+  instance; the formatting chrome around them doesn't. Revisit as a
+  generation target only after the core pipeline renders correctly
+  end-to-end.
 
 #### `drillFilterOtherVisuals` — fixed, `true` on all 3 samples.
 
@@ -428,7 +434,7 @@ table <table_name>
 | `= <DAX>` | yes | the actual aggregation, e.g. `SUM('in'[Cost])`, `AVERAGE('in'[Age])`, `COUNT('in'[PatientID])` — **this is exactly the SQL→DAX translation your SQL Executor / KPI node needs to produce** |
 | `formatString` | no but recommended | number format mask; currency uses the long `\$#,0...` pattern seen above, plain counts use `0` |
 | `lineageTag` | yes | fresh GUID per measure |
-| `annotation PBI_FormatHint` | no | only needed for currency columns, tells Desktop's UI what currency-formatting affordances to show |
+| `annotation PBI_FormatHint` | no | **template, not generated** — copy the fixed `{"currencyCulture":"en-US"}` block onto any column the Profiler flags as currency-typed; same logic as `formatString` below, don't build this from scratch per dataset, just attach the existing block when the type matches |
 
 This is the most directly KPI-node-driven part of the whole file. **A clean
 mapping: each KPI in your Domain/KPI node's output → one `measure` block.**
@@ -528,14 +534,39 @@ structure to the template table above, but:
 - `showAsVariationsOnly` flag present (hides it from the general field list — it's only reachable via the variation drill-down)
 - `partition` source is **not** a placeholder: `Calendar(Date(Year(MIN('in'[VisitDate])), 1, 1), Date(Year(MAX('in'[VisitDate])), 12, 31))` — dynamically spans the actual data's year range, computed by formula at refresh time, **not something the compiler needs to pre-calculate**, just emit this exact formula pattern with the real table/column name substituted in.
 
-**Compiler decision point:** you can either (a) replicate this auto-date
-behavior per date column found by the Profiler — more faithful to what
-Power BI Desktop does by default, more files to generate — or (b) disable
-autodate (`legacyRedirects`/model-level setting) and skip these tables
-entirely, giving up the built-in Date Hierarchy drill but simplifying
-generation substantially. **Recommend (b) for v1**: zero extra files, the
-date column still works fine as a plain date axis, and you can add (a) later
-as a "polish" pass once the core pipeline is proven.
+**Compiler decision (confirmed): keep auto-date tables for v1.** Drill-through
+on date hierarchies (Year → Quarter → Month → Day) is core to what makes a
+Power BI report feel like Power BI — stripping it to save a couple of files
+isn't worth losing that. The added complexity is template substitution, not
+new logic:
+
+1. **For every column the Profiler tags as a date/datetime type**, the
+   compiler emits one `LocalDateTable_<guid>.tmdl`, using the exact template
+   in this section with three substitutions: a fresh `<guid>` for the table
+   name and every `lineageTag`, the real table/column name in the
+   `partition` source formula
+   (`Calendar(Date(Year(MIN('<table>'[<col>])), 1, 1), Date(Year(MAX('<table>'[<col>])), 12, 31))`),
+   and nothing else changes — the 6 calculated columns and the hierarchy are
+   identical DAX every time.
+2. **`DateTableTemplate_<guid>.tmdl` is emitted once per model**, regardless
+   of how many date columns exist — same fill-in-the-GUIDs rule, the
+   `Calendar(Date(2015,1,1), Date(2015,1,1))` placeholder source never
+   changes (Desktop overwrites it at refresh time).
+3. The data column itself gets a `variation` block (§2.12) pointing at its
+   `LocalDateTable_<guid>` and `'Date Hierarchy'`.
+4. `relationships.tmdl` gets one `relationship <guid>` block per date
+   column, in the exact `fromColumn`/`toColumn` shape shown in §2.14.
+5. `model.tmdl`'s `ref table` list must include every `LocalDateTable_<guid>`
+   generated plus the single `DateTableTemplate_<guid>`.
+
+**Practical implication for the compiler's build order:** this is a
+template-fill operation, not new generation logic, so it doesn't have to
+block the v1 pipeline — build the core table/measures/visuals path first
+(per the priority order in §5), then add date-table emission as a
+deterministic post-step once a date column is detected. Keep it isolated in
+its own function (e.g. `emit_date_table(table, column, model_guid)`) so it's
+easy to unit-test against this exact reference file independent of the rest
+of the compiler.
 
 ---
 
@@ -548,14 +579,12 @@ relationship <guid>
 	toColumn: LocalDateTable_4beb135a-eee4-4046-9631-0013a4238641.Date
 ```
 
-One block per relationship. **Only needed if you keep auto-date tables**
-(§2.13 option a). If you go with option (b) — disable autodate — this file
-is just the 1-line `database`-style header with no relationship blocks, or
-omitted entirely for a single-table model with no explicit joins. For
-multi-table datasets later, this is also where your compiler will need to
-emit real foreign-key relationships (`fromColumn`/`toColumn` between two
-actual data tables) — not reverse-engineered here since this sample only has
-one data table.
+One block per relationship. **Required for v1** since auto-date tables are
+in scope (§2.13): every date/datetime column gets one relationship block
+linking it to its `LocalDateTable_<guid>`. For multi-table datasets later,
+this is also where the compiler will need to emit real foreign-key
+relationships (`fromColumn`/`toColumn` between two actual data tables) — not
+reverse-engineered here since this sample only has one data table.
 
 ---
 
@@ -581,13 +610,27 @@ Two different ID schemes appear in this format and they're easy to conflate:
 | **Folder/file IDs** (page, visual) | 20-char lowercase hex-looking string, e.g. `3e33d29435230b0ab08c` | page/visual folder names, `pages.json.pageOrder`, `page.json.name`, `visual.json.name` | generate via any unique string (don't need to match Power BI's exact algorithm — Desktop accepted hand-rolled IDs in community tooling); deterministic slugs (e.g. hash of page title) are fine and make debugging easier than random hex |
 | **`lineageTag` / relationship / logicalId** | standard UUID v4, e.g. `8ef6fb8b-8202-48dc-a192-74f450445b68` | every TMDL `lineageTag`, `.platform` `logicalId`, `relationship <guid>` | use a real `uuid.uuid4()` — these appear to be genuine GUIDs throughout, unlike the folder IDs |
 
-**Open question to verify before relying on it:** whether Power BI Desktop
-*requires* folder/visual `name` values to follow Microsoft's exact ID
-generation algorithm, or merely requires them to be unique strings matching
-between the folder name and the `name` field inside its JSON. Test by
-opening a `.pbip` with a deliberately simple ID (e.g. `"page1"`) — if it
-opens cleanly, your compiler can use human-readable deterministic slugs
-instead of hex strings, which will make debugging much easier.
+**Confirmed by manual test (April, this session):** Power BI Desktop does
+**not** require Microsoft's exact ID generation algorithm — only internal
+consistency. Renaming a visual folder + its `visual.json` `name` field to
+`viz11`, and a page folder + its `page.json` `name` field + its entry in
+`pages.json.pageOrder`/`activePageName` to `page1`, opened cleanly in
+Desktop. The hex-looking strings in the original export are just Microsoft's
+own generation convention, not a format requirement.
+
+**Compiler decision: use human-readable deterministic slugs**, not random
+hex or UUIDs, for page/visual folder+`name` values. E.g. `page_overview`,
+`viz_total_cost_card`, `viz_doctor_patients_bar`. This makes generated
+projects far easier to debug — you can `grep` for a visual by what it is
+rather than by an opaque ID — and removes one source of bugs (ID mismatch
+between folder name and JSON `name` field) since deterministic slugs built
+from KPI/page names are naturally less error-prone to template than
+generating-then-threading random IDs through multiple files.
+
+Note this only applies to **folder/file IDs** (page, visual). `lineageTag`,
+`logicalId`, and `relationship` GUIDs are a different ID class — those are
+real UUIDs used by Power BI's internal change-tracking and should still be
+generated as genuine `uuid.uuid4()` values, not slugs.
 
 ---
 
@@ -629,10 +672,10 @@ theme); `Percent` is a tint/shade adjustment (negative = darker).
 
 | Category | Files / fields | Compiler action |
 |---|---|---|
-| **Fully fixed, copy verbatim** | `database.tmdl`, `version.json`, `definition.pbism`, theme JSONs, `DateTableTemplate` DAX body (except GUIDs), trailing TMDL annotations | Bundle as static templates |
-| **Fixed shell, dynamic IDs only** | `.platform` (×2), `definition.pbir`, page/visual GUIDs, `lineageTag`s everywhere | Template + GUID injection |
+| **Fully fixed, copy verbatim** | `database.tmdl`, `version.json`, `definition.pbism`, theme JSONs, `DateTableTemplate`/`LocalDateTable` DAX bodies (except GUIDs and the one M formula substitution), trailing TMDL annotations, all visual `objects`/`visualContainerObjects` cosmetic blocks, currency `PBI_FormatHint` blocks | Bundle as static templates |
+| **Fixed shell, dynamic IDs only** | `.platform` (×2), `definition.pbir`, page/visual slugs (confirmed: human-readable, not hex — see §3), `lineageTag`/`logicalId`/relationship UUIDs everywhere | Template + ID injection |
 | **Fixed structure, dynamic content** | `report.json` (theme name could vary), `page.json` (displayName, name), TMDL `column`/`measure` blocks | Template + field substitution from Profiler/KPI output |
-| **Fully dynamic, generated per run** | `pages.json.pageOrder`, every `visual.json.query.queryState` field binding, the M `partition.source` script, `model.tmdl`'s `ref table` list | Core compiler logic — this is where your Domain/KPI + Profiler outputs actually become Power BI artifacts |
+| **Fully dynamic, generated per run** | `pages.json.pageOrder`, every `visual.json.query.queryState` field binding, the M `partition.source` script, `model.tmdl`'s `ref table` list, `LocalDateTable_<guid>.tmdl`'s min/max M formula per date column | Core compiler logic — this is where your Domain/KPI + Profiler outputs actually become Power BI artifacts |
 | **Exclude entirely** | `localSettings.json` (×2), `cache.abf`, `editorSettings.json`, `diagramLayout.json`, `cultures/en-US.tmdl` | Never write these; Desktop regenerates on open |
 
 **Practical priority order for the compiler build-out:**
@@ -640,6 +683,6 @@ theme); `Percent` is a tint/shade adjustment (negative = darker).
 2. `<table>.tmdl` partition's M query (CSV ingestion + type casting) — without this nothing loads.
 3. `<table>.tmdl` columns + measures — schema + your KPIs as DAX.
 4. `model.tmdl`'s `ref table` list — must match what you wrote in (2)/(3).
-5. `pages.json` + `page.json` × N — page scaffolding.
-6. `visual.json` × N — the query/field-binding logic, by far the most complex piece; build and test one visual type (e.g. `cardVisual`, simplest) end-to-end before generalizing to chart types with `Category`/`Y` roles.
-7. (Optional, v2) Auto-date tables + relationships, currency format hints, cosmetic formatting blocks.
+5. `pages.json` + `page.json` × N — page scaffolding, using deterministic slugs (§3).
+6. `visual.json` × N — the query/field-binding logic, by far the most complex piece; build and test one visual type (e.g. `cardVisual`, simplest) end-to-end before generalizing to chart types with `Category`/`Y` roles. Attach the fixed `objects`/`visualContainerObjects` template per visual type (§2.8) and the `PBI_FormatHint` template on currency columns (§2.12) at this stage — they're copy-paste, not new logic.
+7. Auto-date tables: `LocalDateTable_<guid>.tmdl` per date column + one `DateTableTemplate_<guid>.tmdl` + `relationships.tmdl` + the `variation` block on each date column — confirmed in-scope for v1 (§2.13), built as an isolated, independently-testable post-step once a date column is detected, not blocking steps 1–6.
