@@ -1,0 +1,5 @@
+relationship 6cef85e3-e90f-46d9-9393-5897e1084f95
+	joinOnDateBehavior: datePartOnly
+	fromColumn: in.VisitDate
+	toColumn: LocalDateTable_4beb135a-eee4-4046-9631-0013a4238641.Date
+
