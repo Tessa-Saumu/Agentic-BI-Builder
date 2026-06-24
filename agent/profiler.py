@@ -34,7 +34,9 @@ _DTYPE_MAP: dict[str, str] = {
     "float32": "float",
     "float64": "float",
     "bool": "boolean",
-    "object": "string",       
+    "object": "string",  
+    "str": "string",       
+    "string": "string",    
     "category": "string",
 }
 
@@ -54,6 +56,10 @@ def _infer_dtype_label(series: pd.Series) -> str:
     # Datetime variants (datetime64[ns], datetime64[us], etc.)
     if dtype_str.startswith("datetime"):
         return "datetime"
+    
+    # object variants — pandas uses these for strings and mixed types
+    if "object" in dtype_str or dtype_str == "string":
+        return "string"
 
     # Timedelta, period, etc. — treat as string for BI purposes
     return "unknown"
