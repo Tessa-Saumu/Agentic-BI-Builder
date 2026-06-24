@@ -239,9 +239,16 @@ def run_profiler(state: AgentState) -> AgentState:
             )
 
     row_count = len(df)
+    
+    _abs = Path(input_path).resolve()
+    try:
+        _rel = _abs.relative_to(Path.cwd())
+    except ValueError:
+        # input_path is outside the project root — fall back to the original as given
+        _rel = Path(input_path)
 
     profile = DataProfile(
-        source_path=str(Path(input_path).resolve()),
+        source_path=str(_rel),
         source_table=table_name,
         row_count=row_count,
         column_count=len(df.columns),

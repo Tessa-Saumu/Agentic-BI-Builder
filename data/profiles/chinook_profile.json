@@ -1,0 +1,57 @@
+{
+  "source_path": "data\\raw\\chinook.sqlite",
+  "source_table": "Album",
+  "row_count": 347,
+  "column_count": 3,
+  "is_single_row": false,
+  "columns": {
+    "AlbumId": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 347,
+      "min_value": 1,
+      "max_value": 347,
+      "sample_values": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "is_all_null": false
+    },
+    "Title": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 347,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "For Those About To Rock We Salute You",
+        "Balls to the Wall",
+        "Restless and Wild",
+        "Let There Be Rock",
+        "Big Ones"
+      ],
+      "is_all_null": false
+    },
+    "ArtistId": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 204,
+      "min_value": 1,
+      "max_value": 275,
+      "sample_values": [
+        1,
+        2,
+        2,
+        1,
+        3
+      ],
+      "is_all_null": false
+    }
+  }
+}
