@@ -36,7 +36,7 @@ class ColumnProfile(BaseModel):
 class DataProfile(BaseModel):
     """Full schema profile of the loaded dataset."""
 
-    source_path: str = Field(description="Absolute path to the input file.")
+    source_path: str = Field(description="Path to the input file, relative to the project root.")
     source_table: str | None = Field(
         default=None,
         description="Table name (SQLite only). None for CSV inputs.",
