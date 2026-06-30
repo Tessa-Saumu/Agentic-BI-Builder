@@ -69,15 +69,21 @@ def _infer_dtype_label(series: pd.Series) -> str:
 # File loader
 # ---------------------------------------------------------------------------
 
-def _load_file(input_path: str) -> tuple[pd.DataFrame, str | None]:
+def _load_file(input_path: str, table_name: str | None = None) -> tuple[pd.DataFrame, str | None]:
     """Load CSV or SQLite file into a DataFrame.
+
+    Args:
+        input_path: Path to the CSV or SQLite file.
+        table_name: Optional table name for SQLite inputs. If None,
+            the first table (alphabetically) is used.
 
     Returns:
         (df, table_name) — table_name is None for CSV inputs.
 
     Raises:
         FileNotFoundError: if the path does not exist.
-        ValueError: if the file extension is unsupported.
+        ValueError: if the file extension is unsupported, or the
+            requested table_name does not exist in the database.
         RuntimeError: wraps unexpected pandas / sqlite3 errors with context.
     """
     path = Path(input_path)
@@ -99,7 +105,6 @@ def _load_file(input_path: str) -> tuple[pd.DataFrame, str | None]:
     if suffix in (".sqlite", ".db", ".sqlite3"):
         try:
             conn = sqlite3.connect(path)
-            # Discover tables; pick the first user table
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT name FROM sqlite_master "
@@ -112,20 +117,29 @@ def _load_file(input_path: str) -> tuple[pd.DataFrame, str | None]:
                 conn.close()
                 raise ValueError(f"SQLite database '{input_path}' contains no tables.")
 
-            table_name = tables[0]
-            df = pd.read_sql(f"SELECT * FROM [{table_name}]", conn)
+            if table_name is not None:
+                if table_name not in tables:
+                    conn.close()
+                    raise ValueError(
+                        f"Table '{table_name}' not found in '{input_path}'. "
+                        f"Available tables: {tables}"
+                    )
+                selected_table = table_name
+            else:
+                selected_table = tables[0]
+
+            df = pd.read_sql(f"SELECT * FROM [{selected_table}]", conn)
             conn.close()
         except (sqlite3.Error, ValueError) as exc:
             raise RuntimeError(
                 f"Failed to read SQLite '{input_path}': {exc}"
             ) from exc
-        return df, table_name
+        return df, selected_table
 
     raise ValueError(
         f"Unsupported file type '{suffix}'. "
         "Expected .csv, .sqlite, .db, or .sqlite3."
     )
-
 
 # ---------------------------------------------------------------------------
 # Per-column stats
@@ -204,8 +218,12 @@ def _sanitise_column_names(df: pd.DataFrame) -> pd.DataFrame:
 # Main node
 # ---------------------------------------------------------------------------
 
-def run_profiler(state: AgentState) -> AgentState:
+def run_profiler(state: AgentState, table_name: str | None = None) -> AgentState:
     """LangGraph node: load input file and compute DataProfile.
+
+    Args:
+        state: Current pipeline state.
+        table_name: Optional SQLite table to profile. Ignored for CSV inputs.
 
     Mutates state.data_profile and appends to state.errors on failure.
     Always returns state so the graph can continue or branch on errors.
@@ -214,7 +232,7 @@ def run_profiler(state: AgentState) -> AgentState:
 
     # --- Load ---
     try:
-        df, table_name = _load_file(input_path)
+        df, loaded_table = _load_file(input_path, table_name=table_name)
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         state.errors.append(f"Profiler load error: {exc}")
         return state
@@ -249,7 +267,7 @@ def run_profiler(state: AgentState) -> AgentState:
 
     profile = DataProfile(
         source_path=str(_rel),
-        source_table=table_name,
+        source_table=loaded_table,
         row_count=row_count,
         column_count=len(df.columns),
         is_single_row=(row_count == 1),

@@ -81,7 +81,7 @@ def run_all() -> None:
             continue
 
         state = AgentState(input_path=input_path, output_path="output/placeholder")
-        result = run_profiler(state)
+        result = run_profiler(state, table_name="Invoice" if label == "Chinook" else None)
 
         if result.errors:
             print(f"  ❌ Errors: {result.errors}")
