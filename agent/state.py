@@ -4,16 +4,17 @@ passed between nodes at every step of the pipeline.
 """
 from __future__ import annotations
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from agent.models import DataProfile
 
 
 class AgentState(BaseModel):
     input_path: str = ""
     output_path: str = ""
-    data_profile: Optional[dict] = None
+    data_profile: Optional[DataProfile] = None
     domain_hypothesis: Optional[dict] = None
-    kpi_specs: List[dict] = []
-    query_results: List[dict] = []
-    reflection_notes: List[dict] = []
+    kpi_specs: List[dict] = Field(default_factory=list)
+    query_results: List[dict] = Field(default_factory=list)
+    reflection_notes: List[dict] = Field(default_factory=list)
     pbir_project: Optional[dict] = None
-    errors: List[str] = []
+    errors: List[str] = Field(default_factory=list)

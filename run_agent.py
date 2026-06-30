@@ -17,7 +17,12 @@ def main():
 
     graph = build_graph()
     initial_state = AgentState(input_path=args.input, output_path=args.output)
-    final_state = graph.invoke(initial_state)
+    try:
+        final_state = graph.invoke(initial_state)
+    except NotImplementedError as e:
+        print(f"\n[Phase 1 Scaffold] Pipeline node not yet implemented: {e}")
+        print("This is expected — nodes raise NotImplementedError until Phase 2.")
+        raise
 
     print(f"\n✅ Report written to: {final_state.output_path}")
     if final_state.errors:
