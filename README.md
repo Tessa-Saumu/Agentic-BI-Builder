@@ -118,7 +118,7 @@ This structure is reverse-engineered from a real `.pbip` export and modelled as 
 git clone https://github.com/your-username/agentic-bi-builder
 cd agentic-bi-builder
 pip install -r requirements.txt
-cp .env.example .env       # add your GOOGLE_API_KEY or MISTRAL_API_KEY
+cp .env.example .env       # add your GEMINI_API_KEY or MISTRAL_API_KEY
 python run_agent.py --input data/chinook.csv --output output/chinook_report
 ```
 

@@ -5,7 +5,7 @@ langchain-google-genai    # <-- Added for Gemini
 langchain-mistralai       # <-- Replaced Groq with Mistral
 
 # LLM providers
-google-generativeai
+google-genai
 mistralai
 
 # Data

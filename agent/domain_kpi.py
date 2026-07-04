@@ -124,7 +124,6 @@ _SQL_STOPWORDS = {
     "abs", "total", "with",
 }
 
-
 def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
     """
     Return a list of human-readable violation messages, one per KPI whose
@@ -139,7 +138,14 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
 
     for kpi in kpi_specs:
         tokens = set()
-        for quoted, bare in _IDENTIFIER_RE.findall(kpi.sql_query):
+        
+        # --- NEW FIX: Remove string literals before extracting identifiers ---
+        # This turns "strftime('%Y-%m', InvoiceDate)" into "strftime('', InvoiceDate)"
+        # so 'Y' and 'm' are never seen by the identifier regex.
+        query_without_strings = re.sub(r"'[^']*'", "''", kpi.sql_query)
+        
+        # Scan the cleaned query instead of the raw query
+        for quoted, bare in _IDENTIFIER_RE.findall(query_without_strings):
             tok = quoted or bare
             tokens.add(tok)
 
@@ -154,7 +160,8 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
                 continue
             # Likely an alias (e.g. "revenue" defined by `AS revenue`) rather
             # than a source column — aliases are permitted since they don't
-            # reference the underlying table.
+            # reference the underlying table. 
+            # Note: We check aliases against the original kpi.sql_query to be safe
             alias_pattern = rf"\bAS\s+{re.escape(tok)}\b"
             if re.search(alias_pattern, kpi.sql_query, flags=re.IGNORECASE):
                 continue
