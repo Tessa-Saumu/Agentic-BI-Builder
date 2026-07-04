@@ -111,6 +111,7 @@ def _valid_column_names(profile: DataProfile) -> set[str]:
 
 
 _IDENTIFIER_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"|\b([A-Za-z_][A-Za-z0-9_]*)\b')
+_STRING_LITERAL_RE = re.compile(r"'[^']*'")
 
 # SQL keywords/functions that will otherwise look like "unknown columns" to
 # the naive identifier scan below.
@@ -123,6 +124,7 @@ _SQL_STOPWORDS = {
     "data", "over", "partition", "rank", "row_number", "coalesce",
     "abs", "total", "with",
 }
+
 
 def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
     """
@@ -137,15 +139,13 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
     violations = []
 
     for kpi in kpi_specs:
+        # Remove string literal contents first — SQL string literals (e.g. the
+        # '%Y-%m' format code inside strftime(...)) are not column references
+        # and must not be tokenized as identifiers.
+        sql_without_literals = _STRING_LITERAL_RE.sub("''", kpi.sql_query)
+
         tokens = set()
-        
-        # --- NEW FIX: Remove string literals before extracting identifiers ---
-        # This turns "strftime('%Y-%m', InvoiceDate)" into "strftime('', InvoiceDate)"
-        # so 'Y' and 'm' are never seen by the identifier regex.
-        query_without_strings = re.sub(r"'[^']*'", "''", kpi.sql_query)
-        
-        # Scan the cleaned query instead of the raw query
-        for quoted, bare in _IDENTIFIER_RE.findall(query_without_strings):
+        for quoted, bare in _IDENTIFIER_RE.findall(sql_without_literals):
             tok = quoted or bare
             tokens.add(tok)
 
@@ -160,8 +160,7 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
                 continue
             # Likely an alias (e.g. "revenue" defined by `AS revenue`) rather
             # than a source column — aliases are permitted since they don't
-            # reference the underlying table. 
-            # Note: We check aliases against the original kpi.sql_query to be safe
+            # reference the underlying table.
             alias_pattern = rf"\bAS\s+{re.escape(tok)}\b"
             if re.search(alias_pattern, kpi.sql_query, flags=re.IGNORECASE):
                 continue
@@ -179,7 +178,16 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
 def _call_gemini(system_prompt: str, user_content: str) -> DomainKPIResponse:
     from google import genai
 
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not set. Set it in your environment or .env file "
+            "(e.g. `$env:GEMINI_API_KEY = \"...\"` in PowerShell, or `export "
+            "GEMINI_API_KEY=...` in bash) before calling run_domain_kpi with "
+            "LLM_PROVIDER=gemini. Get a key at https://aistudio.google.com/apikey."
+        )
+
+    client = genai.Client(api_key=api_key)
     model_name = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash")
 
     response = client.models.generate_content(
@@ -198,9 +206,25 @@ def _call_gemini(system_prompt: str, user_content: str) -> DomainKPIResponse:
 
 
 def _call_mistral(system_prompt: str, user_content: str) -> DomainKPIResponse:
-    from mistralai import Mistral
+    # mistralai v2.0.0 (2026-03) moved the Mistral client class's import path.
+    # v1.x: `from mistralai import Mistral`
+    # v2.x: `from mistralai.client import Mistral`
+    # Support both so this doesn't break on whichever version is installed.
+    try:
+        from mistralai import Mistral  # v1.x
+    except ImportError:
+        from mistralai.client import Mistral  # v2.x
 
-    client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "MISTRAL_API_KEY is not set. Set it in your environment or .env file "
+            "(e.g. `$env:MISTRAL_API_KEY = \"...\"` in PowerShell, or `export "
+            "MISTRAL_API_KEY=...` in bash) before calling run_domain_kpi with "
+            "LLM_PROVIDER=mistral. Get a key at https://console.mistral.ai/api-keys."
+        )
+
+    client = Mistral(api_key=api_key)
     model_name = os.environ.get("MISTRAL_MODEL", "mistral-large-latest")
 
     chat_response = client.chat.parse(
