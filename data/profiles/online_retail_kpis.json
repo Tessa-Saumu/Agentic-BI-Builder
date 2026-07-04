@@ -7,38 +7,38 @@
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "Sum of all sales revenue (Quantity * UnitPrice) across all transactions, providing a high-level measure of business performance.",
+      "description": "Sum of all sales (Quantity * UnitPrice) across the dataset, representing the business's gross revenue.",
       "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data",
       "chart_type": "card",
-      "reasoning": "Total revenue is a fundamental KPI for retail businesses, and a single summary number is best displayed as a card."
+      "reasoning": "Total revenue is a fundamental KPI for retail businesses, providing a single summary metric of overall sales performance. A 'card' visual is ideal for displaying this single value."
     },
     {
       "name": "Revenue by Country",
-      "description": "Total revenue broken down by Country, identifying top markets and regional performance.",
+      "description": "Sum of revenue (Quantity * UnitPrice) grouped by Country, identifying top revenue markets.",
       "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Country ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "Country is a low-cardinality categorical dimension, making it ideal for a bar chart to compare revenue across regions."
+      "reasoning": "Revenue by country is critical for understanding geographic performance. The low cardinality of Country (38 distinct values) makes it well-suited for a bar chart comparison."
     },
     {
       "name": "Monthly Revenue Trend",
-      "description": "Total revenue aggregated by month to analyze sales trends over time.",
+      "description": "Sum of revenue (Quantity * UnitPrice) grouped by month, showing sales trends over time.",
       "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS month, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY month ORDER BY month",
       "chart_type": "lineChart",
-      "reasoning": "A line chart is the best way to visualize trends over time, and InvoiceDate allows for monthly aggregation."
+      "reasoning": "Tracking revenue over time is essential for identifying seasonal patterns or growth trends. A line chart effectively visualizes temporal trends."
+    },
+    {
+      "name": "Average Order Value (AOV)",
+      "description": "Average revenue per invoice, calculated as total revenue divided by the number of unique invoices.",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data",
+      "chart_type": "card",
+      "reasoning": "AOV is a key retail metric for understanding customer spending behavior. A 'card' visual is appropriate for this single summary value."
     },
     {
       "name": "Top 10 Products by Revenue",
-      "description": "The 10 products (StockCode) generating the highest revenue, highlighting best-selling items.",
-      "sql_query": "SELECT StockCode, Description, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY StockCode, Description ORDER BY revenue DESC LIMIT 10",
+      "description": "Sum of revenue (Quantity * UnitPrice) for each product, ranked to show the highest-grossing items.",
+      "sql_query": "SELECT Description, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Description ORDER BY revenue DESC LIMIT 10",
       "chart_type": "barChart",
-      "reasoning": "A bar chart effectively ranks products by revenue, and StockCode/Description are suitable dimensions for this comparison."
-    },
-    {
-      "name": "Customer Purchase Frequency",
-      "description": "Number of invoices per customer, identifying how often customers make purchases.",
-      "sql_query": "SELECT CustomerID, COUNT(DISTINCT InvoiceNo) AS invoice_count FROM data WHERE CustomerID IS NOT NULL GROUP BY CustomerID ORDER BY invoice_count DESC",
-      "chart_type": "table",
-      "reasoning": "A table is appropriate here due to the high cardinality of CustomerID and the need to display exact counts for analysis."
+      "reasoning": "Identifying top-performing products helps prioritize inventory and marketing efforts. A bar chart effectively ranks the top 10 products by revenue."
     }
   ]
 }

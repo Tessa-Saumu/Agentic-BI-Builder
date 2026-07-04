@@ -36,7 +36,11 @@ SQLite 3.25+ (RANK, ROW_NUMBER, OVER are fine).
 - Use double quotes only for identifiers if a column name requires escaping; \
 use single quotes for string literals.
 - Do not reference any table other than the single table being profiled; \
-assume the table name is "data" unless a source_table is explicitly given.
+the table is always loaded into the query engine as "data" — always write \
+FROM data (optionally with an alias, e.g. FROM data AS d), never the \
+dataset's original source table name, even if source_table in the profile \
+names something else (that field describes where the data came from, not \
+what to call it in your SQL).
 - Do not use INSERT, UPDATE, DELETE, DROP, or any DDL/DML other than SELECT.
 - Prefer explicit column lists over SELECT * so results map cleanly to a chart.
 - Every query must be a single, valid, standalone SELECT statement.
@@ -310,6 +314,9 @@ def run_domain_kpi(state: AgentState) -> AgentState:
     violations = _validate_sql_columns(result.kpi_specs, profile)
 
     if violations:
+        first_attempt_sql_dump = "\n".join(
+            f"  [{kpi.name}] {kpi.sql_query}" for kpi in result.kpi_specs
+        )
         # One repair attempt: feed the violations back and ask for a fix.
         repair_content = (
             f"{user_content}\n\n"
@@ -325,9 +332,17 @@ def run_domain_kpi(state: AgentState) -> AgentState:
 
         violations = _validate_sql_columns(result.kpi_specs, profile)
         if violations:
+            # Include the raw SQL from both attempts so a failure is
+            # diagnosable directly from the error message, without needing
+            # to reproduce it separately.
+            second_attempt_sql_dump = "\n".join(
+                f"  [{kpi.name}] {kpi.sql_query}" for kpi in result.kpi_specs
+            )
             state.errors.append(
                 "run_domain_kpi: unresolved SQL column violations after repair attempt: "
                 + "; ".join(violations)
+                + "\nFirst-attempt SQL:\n" + first_attempt_sql_dump
+                + "\nSecond-attempt (post-repair) SQL:\n" + second_attempt_sql_dump
             )
             return state
 
