@@ -1,0 +1,44 @@
+{
+  "domain_hypothesis": {
+    "domain": "e-commerce retail",
+    "confidence": 1.0,
+    "reasoning": "The columns including InvoiceNo, StockCode, Quantity, UnitPrice, CustomerID, and Country are classic indicators of an online retail transaction dataset tracking sales history."
+  },
+  "kpi_specs": [
+    {
+      "name": "Total Revenue",
+      "description": "Calculates the overall revenue generated from transaction quantities and unit prices.",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data",
+      "chart_type": "card",
+      "reasoning": "A single total revenue card is the primary high-level health metric for any commercial retail business."
+    },
+    {
+      "name": "Monthly Sales Trend",
+      "description": "Measures total sales over time grouped by month to spot seasonality and growth patterns.",
+      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS invoice_month, SUM(Quantity * UnitPrice) AS monthly_revenue FROM data GROUP BY invoice_month ORDER BY invoice_month ASC",
+      "chart_type": "lineChart",
+      "reasoning": "A line chart shows how sales fluctuate month-over-month, highlighting seasonal peaks and macroeconomic trends."
+    },
+    {
+      "name": "Top 10 Countries by Revenue",
+      "description": "Identifies the highest revenue-generating markets globally.",
+      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS total_revenue FROM data GROUP BY Country ORDER BY total_revenue DESC LIMIT 10",
+      "chart_type": "barChart",
+      "reasoning": "A horizontal bar chart is ideal for displaying a discrete comparison of sales volume across regional markets."
+    },
+    {
+      "name": "Top 10 Selling Products",
+      "description": "Rankings of stock items by the total quantity sold.",
+      "sql_query": "SELECT StockCode, Description, SUM(Quantity) AS total_quantity_sold FROM data WHERE Description IS NOT NULL GROUP BY StockCode, Description ORDER BY total_quantity_sold DESC LIMIT 10",
+      "chart_type": "table",
+      "reasoning": "A tabular format is best suited for lists of products with identifiers and descriptions, keeping details readable."
+    },
+    {
+      "name": "Average Order Value",
+      "description": "Calculates the average revenue generated per unique invoice transaction.",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data WHERE Quantity > 0",
+      "chart_type": "card",
+      "reasoning": "Average order value (AOV) measures purchase sizes, which helps assess customer purchasing behavior and retail performance. Filtering out negative quantities prevents return transactions from distorting actual order size."
+    }
+  ]
+}

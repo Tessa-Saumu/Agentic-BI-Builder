@@ -3,8 +3,8 @@ Runs the Domain/KPI node against every `*_profile.json` file in
 `data/profiles/` and writes `<dataset>_kpis.json` alongside them.
 
 Usage:
-    LLM_PROVIDER=gemini python scripts/run_domain_kpi_all.py
-    LLM_PROVIDER=mistral python scripts/run_domain_kpi_all.py
+    Set .env LLM_PROVIDER = "gemini" then run python -m scripts.run_domain_kpi_all
+    Set .env LLM_PROVIDER = "mistral" then run python -m scripts.run_domain_kpi_all
 
 Expects GEMINI_API_KEY or MISTRAL_API_KEY (matching LLM_PROVIDER) to be set.
 """
@@ -18,6 +18,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from agent.domain_kpi import run_domain_kpi, save_kpi_output  # noqa: E402
 from agent.models import DataProfile  # noqa: E402
 from agent.state import AgentState  # noqa: E402
+
+from dotenv import load_dotenv
+load_dotenv()
 
 PROFILES_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "profiles"))
 
