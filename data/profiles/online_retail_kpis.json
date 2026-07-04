@@ -1,44 +1,44 @@
 {
   "domain_hypothesis": {
     "domain": "e-commerce retail",
-    "confidence": 1.0,
-    "reasoning": "The columns including InvoiceNo, StockCode, Quantity, UnitPrice, CustomerID, and Country are classic indicators of an online retail transaction dataset tracking sales history."
+    "confidence": 0.98,
+    "reasoning": "The dataset contains columns typical of e-commerce retail transactions: InvoiceNo (transaction identifier), StockCode and Description (product details), Quantity and UnitPrice (order line items), InvoiceDate (transaction timestamp), CustomerID (buyer identifier), and Country (geographic market). The presence of these fields strongly suggests a retail sales domain."
   },
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "Calculates the overall revenue generated from transaction quantities and unit prices.",
+      "description": "Sum of all sales revenue (Quantity * UnitPrice) across all transactions, providing a high-level measure of business performance.",
       "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data",
       "chart_type": "card",
-      "reasoning": "A single total revenue card is the primary high-level health metric for any commercial retail business."
+      "reasoning": "Total revenue is a fundamental KPI for retail businesses, and a single summary number is best displayed as a card."
     },
     {
-      "name": "Monthly Sales Trend",
-      "description": "Measures total sales over time grouped by month to spot seasonality and growth patterns.",
-      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS invoice_month, SUM(Quantity * UnitPrice) AS monthly_revenue FROM data GROUP BY invoice_month ORDER BY invoice_month ASC",
-      "chart_type": "lineChart",
-      "reasoning": "A line chart shows how sales fluctuate month-over-month, highlighting seasonal peaks and macroeconomic trends."
-    },
-    {
-      "name": "Top 10 Countries by Revenue",
-      "description": "Identifies the highest revenue-generating markets globally.",
-      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS total_revenue FROM data GROUP BY Country ORDER BY total_revenue DESC LIMIT 10",
+      "name": "Revenue by Country",
+      "description": "Total revenue broken down by Country, identifying top markets and regional performance.",
+      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Country ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "A horizontal bar chart is ideal for displaying a discrete comparison of sales volume across regional markets."
+      "reasoning": "Country is a low-cardinality categorical dimension, making it ideal for a bar chart to compare revenue across regions."
     },
     {
-      "name": "Top 10 Selling Products",
-      "description": "Rankings of stock items by the total quantity sold.",
-      "sql_query": "SELECT StockCode, Description, SUM(Quantity) AS total_quantity_sold FROM data WHERE Description IS NOT NULL GROUP BY StockCode, Description ORDER BY total_quantity_sold DESC LIMIT 10",
+      "name": "Monthly Revenue Trend",
+      "description": "Total revenue aggregated by month to analyze sales trends over time.",
+      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS month, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY month ORDER BY month",
+      "chart_type": "lineChart",
+      "reasoning": "A line chart is the best way to visualize trends over time, and InvoiceDate allows for monthly aggregation."
+    },
+    {
+      "name": "Top 10 Products by Revenue",
+      "description": "The 10 products (StockCode) generating the highest revenue, highlighting best-selling items.",
+      "sql_query": "SELECT StockCode, Description, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY StockCode, Description ORDER BY revenue DESC LIMIT 10",
+      "chart_type": "barChart",
+      "reasoning": "A bar chart effectively ranks products by revenue, and StockCode/Description are suitable dimensions for this comparison."
+    },
+    {
+      "name": "Customer Purchase Frequency",
+      "description": "Number of invoices per customer, identifying how often customers make purchases.",
+      "sql_query": "SELECT CustomerID, COUNT(DISTINCT InvoiceNo) AS invoice_count FROM data WHERE CustomerID IS NOT NULL GROUP BY CustomerID ORDER BY invoice_count DESC",
       "chart_type": "table",
-      "reasoning": "A tabular format is best suited for lists of products with identifiers and descriptions, keeping details readable."
-    },
-    {
-      "name": "Average Order Value",
-      "description": "Calculates the average revenue generated per unique invoice transaction.",
-      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data WHERE Quantity > 0",
-      "chart_type": "card",
-      "reasoning": "Average order value (AOV) measures purchase sizes, which helps assess customer purchasing behavior and retail performance. Filtering out negative quantities prevents return transactions from distorting actual order size."
+      "reasoning": "A table is appropriate here due to the high cardinality of CustomerID and the need to display exact counts for analysis."
     }
   ]
 }
