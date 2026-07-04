@@ -133,6 +133,24 @@ class TestSQLColumnValidation:
         assert len(violations) == 1
         assert "Bad" in violations[0]
 
+    def test_strftime_format_string_not_flagged_as_column(self, retail_profile):
+        # Regression test: strftime('%Y-%m', InvoiceDate) contains letters
+        # ('Y', 'm') inside a string literal that are format codes, not column
+        # references. These must not be flagged as hallucinated columns.
+        kpi = _make_kpi(
+            "SELECT strftime('%Y-%m', InvoiceDate) AS invoice_month, "
+            "SUM(Quantity * UnitPrice) AS monthly_revenue FROM data "
+            "GROUP BY invoice_month ORDER BY invoice_month ASC"
+        )
+        assert _validate_sql_columns([kpi], retail_profile) == []
+
+    def test_string_literal_with_fake_column_name_not_flagged(self, retail_profile):
+        # A string literal's contents should never be tokenized as an
+        # identifier at all, even if it happens to contain a plausible-looking
+        # "column-like" word.
+        kpi = _make_kpi("SELECT Country FROM data WHERE Country = 'NotARealColumn'")
+        assert _validate_sql_columns([kpi], retail_profile) == []
+
 
 # ---------------------------------------------------------------------------
 # Pydantic model constraints
@@ -167,6 +185,22 @@ class TestModelConstraints:
 # ---------------------------------------------------------------------------
 # run_domain_kpi orchestration (LLM call mocked)
 # ---------------------------------------------------------------------------
+
+class TestMistralImportCompatibility:
+    def test_mistral_client_class_is_importable(self):
+        # Regression test: mistralai v2.0.0 moved the Mistral client class
+        # from `mistralai.Mistral` to `mistralai.client.Mistral`. This must
+        # resolve regardless of which major version is installed, matching
+        # the fallback logic in _call_mistral.
+        try:
+            from mistralai import Mistral
+        except ImportError:
+            from mistralai.client import Mistral
+        assert Mistral is not None
+        # Must be constructible with just an api_key kwarg (no network call).
+        client = Mistral(api_key="test-key-not-used")
+        assert client is not None
+
 
 class TestRunDomainKpi:
     def test_missing_profile_records_error(self):
