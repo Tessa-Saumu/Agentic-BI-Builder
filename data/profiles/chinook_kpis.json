@@ -2,43 +2,43 @@
   "domain_hypothesis": {
     "domain": "e-commerce retail",
     "confidence": 0.95,
-    "reasoning": "The dataset contains invoicing details including CustomerId, InvoiceDate, billing address demographics (City, State, Country, PostalCode), and transaction Totals, which are characteristic of global e-commerce or digital retail sales."
+    "reasoning": "The dataset contains invoice-level transaction data with fields like InvoiceId, CustomerId, InvoiceDate, billing address details, and a Total amount. These are classic e-commerce retail signals, as they represent sales transactions with customer and geographic dimensions."
   },
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "The sum of all invoice totals to measure overall sales performance.",
-      "sql_query": "SELECT SUM(Total) AS total_revenue FROM data",
+      "description": "Sum of all invoice totals, representing the overall revenue generated.",
+      "sql_query": "SELECT SUM(\"Total\") AS total_revenue FROM data",
       "chart_type": "card",
-      "reasoning": "Total revenue is the primary financial metric and is best represented as a single big number (card) for executive dashboards."
-    },
-    {
-      "name": "Average Invoice Value",
-      "description": "The average value of transactions, helping to understand basket size and customer purchasing power.",
-      "sql_query": "SELECT AVG(Total) AS avg_invoice_value FROM data",
-      "chart_type": "card",
-      "reasoning": "Average transaction value is a key efficiency metric in retail, best displayed on a single-value card."
+      "reasoning": "Total revenue is a fundamental KPI for any retail business, providing a single summary metric of financial performance."
     },
     {
       "name": "Revenue by Country",
-      "description": "Total sales volume aggregated by billing country to identify primary geographic markets.",
-      "sql_query": "SELECT BillingCountry, SUM(Total) AS revenue FROM data GROUP BY BillingCountry ORDER BY revenue DESC",
+      "description": "Total revenue grouped by billing country, identifying top markets.",
+      "sql_query": "SELECT \"BillingCountry\", SUM(\"Total\") AS revenue FROM data GROUP BY \"BillingCountry\" ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "A bar chart is ideal for comparing a numerical measure (revenue) across a categorical dimension (BillingCountry) with moderate cardinality."
+      "reasoning": "Revenue by country is critical for understanding geographic performance, and a bar chart effectively compares categorical values."
     },
     {
       "name": "Monthly Revenue Trend",
-      "description": "The historical trend of monthly sales to evaluate growth patterns and seasonality.",
-      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS month, SUM(Total) AS monthly_revenue FROM data GROUP BY month ORDER BY month ASC",
+      "description": "Total revenue aggregated by month to show trends over time.",
+      "sql_query": "SELECT strftime('%Y-%m', \"InvoiceDate\") AS month, SUM(\"Total\") AS revenue FROM data GROUP BY month ORDER BY month",
       "chart_type": "lineChart",
-      "reasoning": "A line chart is the standard visual representation for showing continuous trends and performance patterns over chronological intervals."
+      "reasoning": "Tracking revenue over time is essential for identifying growth patterns, and a line chart is ideal for visualizing trends."
     },
     {
-      "name": "Top Customers by Total Spend",
-      "description": "A ranking of the top 10 customers based on their cumulative purchase totals to identify high-value clients.",
-      "sql_query": "SELECT CustomerId, COUNT(InvoiceId) AS transaction_count, SUM(Total) AS total_spent FROM data GROUP BY CustomerId ORDER BY total_spent DESC LIMIT 10",
+      "name": "Average Order Value (AOV)",
+      "description": "Average total per invoice, indicating customer spending behavior.",
+      "sql_query": "SELECT AVG(\"Total\") AS average_order_value FROM data",
+      "chart_type": "card",
+      "reasoning": "AOV is a key retail metric for understanding customer purchase behavior, best displayed as a single summary number."
+    },
+    {
+      "name": "Top Customers by Revenue",
+      "description": "Ranking of customers by their total spending, identifying high-value customers.",
+      "sql_query": "SELECT \"CustomerId\", SUM(\"Total\") AS total_spent FROM data GROUP BY \"CustomerId\" ORDER BY total_spent DESC LIMIT 10",
       "chart_type": "table",
-      "reasoning": "A table is appropriate here as it allows business analysts to view multiple attributes (ID, transaction frequency, and total spend) for the highest-value segment."
+      "reasoning": "Identifying top customers is crucial for retention strategies, and a table effectively ranks multi-column breakdowns."
     }
   ]
 }

@@ -1,44 +1,44 @@
 {
   "domain_hypothesis": {
-    "domain": "HR/employee retention",
+    "domain": "HR/employee retention and satisfaction",
     "confidence": 0.98,
-    "reasoning": "The dataset contains columns related to employee demographics (Age, Gender, MaritalStatus), job characteristics (JobRole, Department, JobLevel, JobSatisfaction), compensation (MonthlyIncome, PercentSalaryHike, StockOptionLevel), and attrition (Attrition). These signals strongly indicate a human resources domain focused on employee retention and workforce analytics."
+    "reasoning": "The dataset contains employee-level attributes such as Age, Attrition, Department, JobRole, MonthlyIncome, JobSatisfaction, EnvironmentSatisfaction, WorkLifeBalance, YearsAtCompany, and OverTime. These columns are characteristic of HR datasets focused on workforce analytics, particularly employee retention, satisfaction, and performance."
   },
   "kpi_specs": [
     {
-      "name": "Attrition Rate",
-      "description": "Percentage of employees who have left the company (Attrition = 'Yes'). This KPI is critical for assessing workforce stability and retention efforts.",
-      "sql_query": "SELECT (CAST(SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) * 100 AS attrition_rate FROM data",
-      "chart_type": "card",
-      "reasoning": "Attrition rate is a fundamental HR KPI for retention analysis. A single summary number is best displayed as a card for quick insight."
-    },
-    {
-      "name": "Attrition by Department",
-      "description": "Breakdown of attrition rates across departments to identify high-risk areas.",
-      "sql_query": "SELECT Department, (CAST(SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) * 100 AS attrition_rate FROM data GROUP BY Department ORDER BY attrition_rate DESC",
+      "name": "Attrition Rate by Department",
+      "description": "Percentage of employees who left the company (Attrition = 'Yes') grouped by Department. Helps identify departments with higher turnover.",
+      "sql_query": "SELECT Department, COUNT(*) AS total_employees, SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) AS attrition_count, (SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS attrition_rate FROM data GROUP BY Department ORDER BY attrition_rate DESC",
       "chart_type": "barChart",
-      "reasoning": "Comparing attrition across departments is analytically meaningful, and a bar chart effectively highlights differences in categorical data."
+      "reasoning": "Attrition is a critical HR KPI, and Department is a low-cardinality categorical column. A bar chart effectively compares attrition rates across departments."
     },
     {
-      "name": "Average Monthly Income by Job Role",
-      "description": "Average monthly income grouped by job role to assess compensation equity and role valuation.",
-      "sql_query": "SELECT JobRole, AVG(MonthlyIncome) AS avg_monthly_income FROM data GROUP BY JobRole ORDER BY avg_monthly_income DESC",
+      "name": "Average Job Satisfaction by Job Role",
+      "description": "Average JobSatisfaction score (1-4 scale) grouped by JobRole. Identifies roles with lower satisfaction that may need intervention.",
+      "sql_query": "SELECT JobRole, AVG(JobSatisfaction) AS avg_satisfaction FROM data GROUP BY JobRole ORDER BY avg_satisfaction ASC",
       "chart_type": "barChart",
-      "reasoning": "Compensation equity is a key HR concern. A bar chart allows easy comparison of average income across job roles."
+      "reasoning": "Job satisfaction is a key HR metric, and JobRole is a categorical column with manageable cardinality. A bar chart highlights differences across roles."
     },
     {
-      "name": "Job Satisfaction Distribution",
-      "description": "Count of employees by job satisfaction level (1-4) to gauge overall workforce morale.",
-      "sql_query": "SELECT JobSatisfaction, COUNT(*) AS employee_count FROM data GROUP BY JobSatisfaction ORDER BY JobSatisfaction",
-      "chart_type": "barChart",
-      "reasoning": "Job satisfaction is a critical employee engagement metric. A bar chart effectively displays the distribution of satisfaction levels."
-    },
-    {
-      "name": "Attrition by Years at Company",
-      "description": "Attrition rate segmented by years at the company to identify tenure-related retention risks.",
-      "sql_query": "SELECT YearsAtCompany, (CAST(SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) * 100 AS attrition_rate FROM data GROUP BY YearsAtCompany ORDER BY YearsAtCompany",
+      "name": "Monthly Income vs. Years at Company",
+      "description": "Average MonthlyIncome grouped by YearsAtCompany. Shows how compensation evolves with tenure.",
+      "sql_query": "SELECT YearsAtCompany, AVG(MonthlyIncome) AS avg_income FROM data GROUP BY YearsAtCompany ORDER BY YearsAtCompany",
       "chart_type": "lineChart",
-      "reasoning": "Analyzing attrition trends over tenure (a continuous variable) is best visualized as a line chart to reveal patterns over time."
+      "reasoning": "Trends over tenure (YearsAtCompany) are best visualized as a line chart, and income progression is a standard HR KPI."
+    },
+    {
+      "name": "Work-Life Balance by Overtime Status",
+      "description": "Average WorkLifeBalance score (1-4 scale) grouped by OverTime status (Yes/No). Assesses impact of overtime on work-life balance.",
+      "sql_query": "SELECT OverTime, AVG(WorkLifeBalance) AS avg_balance FROM data GROUP BY OverTime ORDER BY avg_balance ASC",
+      "chart_type": "barChart",
+      "reasoning": "Work-life balance is a critical HR metric, and OverTime is a binary categorical column. A bar chart clearly compares the two groups."
+    },
+    {
+      "name": "Overall Employee Attrition Rate",
+      "description": "Percentage of all employees who left the company (Attrition = 'Yes'). Provides a high-level retention metric.",
+      "sql_query": "SELECT (SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS overall_attrition_rate FROM data",
+      "chart_type": "card",
+      "reasoning": "A single summary number is best displayed as a card, and overall attrition rate is a fundamental HR KPI for retention analysis."
     }
   ]
 }
