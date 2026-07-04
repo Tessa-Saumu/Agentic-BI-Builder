@@ -151,6 +151,34 @@ class TestSQLColumnValidation:
         kpi = _make_kpi("SELECT Country FROM data WHERE Country = 'NotARealColumn'")
         assert _validate_sql_columns([kpi], retail_profile) == []
 
+    def test_qualified_column_reference_is_not_flagged(self, retail_profile):
+        # Regression test: `Invoice.Total` style table-qualified references
+        # must not have the qualifier ("Invoice") flagged as a hallucinated
+        # column — the qualifier is a table alias, not a column.
+        kpi = _make_kpi(
+            "SELECT Invoice.Country, SUM(Invoice.Quantity * Invoice.UnitPrice) AS revenue "
+            "FROM data AS Invoice GROUP BY Invoice.Country"
+        )
+        assert _validate_sql_columns([kpi], retail_profile) == []
+
+    def test_hallucinated_qualified_column_is_still_caught(self, retail_profile):
+        # The qualifier being legitimate must not exempt the column part from
+        # validation — a hallucinated column qualified with a real or fake
+        # table alias is still a hallucinated column.
+        kpi = _make_kpi("SELECT data.DiscountPercent FROM data")
+        violations = _validate_sql_columns([kpi], retail_profile)
+        assert len(violations) == 1
+        assert "DiscountPercent" in violations[0]
+
+    def test_declared_table_alias_not_flagged_even_when_unqualified_elsewhere(self, retail_profile):
+        # An alias declared via `FROM data AS d` should never itself be
+        # flagged as an unknown column if it appears bare elsewhere (e.g. in
+        # a comment-like context or repeated qualifier).
+        kpi = _make_kpi(
+            "SELECT d.Country, SUM(d.Quantity * d.UnitPrice) AS revenue FROM data AS d GROUP BY d.Country"
+        )
+        assert _validate_sql_columns([kpi], retail_profile) == []
+
 
 # ---------------------------------------------------------------------------
 # Pydantic model constraints

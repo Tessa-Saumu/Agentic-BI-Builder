@@ -112,6 +112,15 @@ def _valid_column_names(profile: DataProfile) -> set[str]:
 
 _IDENTIFIER_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"|\b([A-Za-z_][A-Za-z0-9_]*)\b')
 _STRING_LITERAL_RE = re.compile(r"'[^']*'")
+# Matches `qualifier.column` (e.g. Invoice.Total, data.Country) so the
+# qualifier can be treated as a table alias rather than a column reference.
+_QUALIFIED_REF_RE = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b')
+# Matches `FROM x AS alias` / `FROM x alias` / `JOIN x AS alias` so declared
+# table aliases are recognized and never flagged as unknown columns.
+_TABLE_ALIAS_RE = re.compile(
+    r'\b(?:FROM|JOIN)\s+[A-Za-z_][A-Za-z0-9_]*\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)\b',
+    re.IGNORECASE,
+)
 
 # SQL keywords/functions that will otherwise look like "unknown columns" to
 # the naive identifier scan below.
@@ -144,8 +153,27 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
         # and must not be tokenized as identifiers.
         sql_without_literals = _STRING_LITERAL_RE.sub("''", kpi.sql_query)
 
+        # Table aliases declared via `FROM x AS alias` / `JOIN x alias` — these
+        # are never column references and must be excluded from the check.
+        declared_aliases = {m.lower() for m in _TABLE_ALIAS_RE.findall(sql_without_literals)}
+
+        # Qualified references like `Invoice.Total`: the qualifier (`Invoice`)
+        # is a table/alias reference, not a column, so it must never be
+        # checked against the profile's columns. The part after the dot
+        # (`Total`) IS a real column reference and must still be validated
+        # normally — qualification doesn't exempt a hallucinated column name.
+        qualified_pairs = _QUALIFIED_REF_RE.findall(sql_without_literals)
+        qualifiers = {q.lower() for q, _ in qualified_pairs}
+
+        # Strip qualifier.column pairs down to just the column part before the
+        # general tokenizer runs, so the qualifier itself never becomes a
+        # standalone token subject to the unknown-identifier check. The
+        # unqualified column name flows into the normal token pool below and
+        # is validated exactly like any other bare column reference.
+        sql_for_tokenizing = _QUALIFIED_REF_RE.sub(lambda m: m.group(2), sql_without_literals)
+
         tokens = set()
-        for quoted, bare in _IDENTIFIER_RE.findall(sql_without_literals):
+        for quoted, bare in _IDENTIFIER_RE.findall(sql_for_tokenizing):
             tok = quoted or bare
             tokens.add(tok)
 
@@ -155,6 +183,8 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
             if tok_lower in _SQL_STOPWORDS:
                 continue
             if tok in valid_cols or tok_lower in valid_cols_lower:
+                continue
+            if tok_lower in declared_aliases or tok_lower in qualifiers:
                 continue
             if tok.isdigit():
                 continue
