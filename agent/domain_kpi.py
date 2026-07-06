@@ -230,18 +230,23 @@ def run_domain_kpi(state: AgentState) -> AgentState:
 
     provider = os.environ.get("LLM_PROVIDER", "gemini").strip().lower()
     profile = state.data_profile
+
+    print(f"[Domain/KPI] Provider: {provider}. Building prompt from profile ({profile.row_count} rows, {profile.column_count} columns)...")
     context = _profile_to_prompt_context(profile)
     user_content = f"Dataset profile:\n\n{context}\n\nPropose the domain hypothesis and 5 KPIs now."
 
+    print("[Domain/KPI] Requesting domain hypothesis + 5 KPIs from LLM...")
     try:
         result = call_llm(SYSTEM_PROMPT, user_content, provider, response_model=DomainKPIResponse)
     except Exception as exc:
         state.errors.append(f"run_domain_kpi: LLM call failed for provider '{provider}': {exc}")
         return state
 
+    print(f"[Domain/KPI] Received domain '{result.domain_hypothesis.domain}' and {len(result.kpi_specs)} KPIs. Validating SQL column references...")
     violations = _validate_sql_columns(result.kpi_specs, profile)
 
     if violations:
+        print(f"[Domain/KPI] {len(violations)} KPI(s) referenced unrecognized columns. Requesting one repair pass...")
         first_attempt_sql_dump = "\n".join(
             f"  [{kpi.name}] {kpi.sql_query}" for kpi in result.kpi_specs
         )
@@ -258,6 +263,7 @@ def run_domain_kpi(state: AgentState) -> AgentState:
             state.errors.append(f"run_domain_kpi: repair LLM call failed for provider '{provider}': {exc}")
             return state
 
+        print("[Domain/KPI] Re-validating repaired SQL...")
         violations = _validate_sql_columns(result.kpi_specs, profile)
         if violations:
             # Include the raw SQL from both attempts so a failure is
@@ -274,6 +280,9 @@ def run_domain_kpi(state: AgentState) -> AgentState:
             )
             return state
 
+        print("[Domain/KPI] Repair succeeded — all columns valid.")
+
+    print(f"[Domain/KPI] Done: domain='{result.domain_hypothesis.domain}', {len(result.kpi_specs)} KPIs validated.")
     state.domain_hypothesis = result.domain_hypothesis
     state.kpi_specs = result.kpi_specs
     return state

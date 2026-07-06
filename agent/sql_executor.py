@@ -102,25 +102,35 @@ def run_sql_executor(state: AgentState) -> AgentState:
         state.errors.append("run_sql_executor: state.kpi_specs is empty; run the Domain/KPI node first.")
         return state
 
+    print(f"[SQL Executor] Loading data from '{state.input_path}'" + (
+        f" (table: {state.data_profile.source_table})" if state.data_profile.source_table else ""
+    ) + "...")
     try:
         df = _load_dataframe_for_execution(state.data_profile, state.input_path)
     except Exception as exc:
         state.errors.append(f"run_sql_executor: failed to load data for execution: {exc}")
         return state
 
+    print(f"[SQL Executor] Loaded {len(df)} rows. Building in-memory SQLite table...")
     try:
         conn = _build_in_memory_db(df)
     except Exception as exc:
         state.errors.append(f"run_sql_executor: failed to build in-memory SQLite DB: {exc}")
         return state
 
+    print(f"[SQL Executor] Executing {len(state.kpi_specs)} KPI queries...")
     try:
-        results = [
-            _execute_single_kpi(conn, kpi.name, kpi.sql_query)
-            for kpi in state.kpi_specs
-        ]
+        results = []
+        for kpi in state.kpi_specs:
+            qr = _execute_single_kpi(conn, kpi.name, kpi.sql_query)
+            status_label = "PASS" if qr.status == "pass" else f"FAIL ({qr.error_message})"
+            print(f"[SQL Executor]   {kpi.name}: {status_label}")
+            results.append(qr)
     finally:
         conn.close()
+
+    n_passed = sum(1 for r in results if r.status == "pass")
+    print(f"[SQL Executor] Done: {n_passed}/{len(results)} queries passed.")
 
     state.query_results = results
     return state

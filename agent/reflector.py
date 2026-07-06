@@ -193,8 +193,10 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
 
     provider = os.environ.get("LLM_PROVIDER", "gemini").strip().lower()
 
+    print(f"[Reflector] Provider: {provider}. Building reflection prompt for {len(state.kpi_specs)} KPIs...")
     prompt = _build_reflection_prompt(state.data_profile, state.kpi_specs, state.query_results)
 
+    print("[Reflector] Requesting review from LLM...")
     try:
         response = _call_reflection_llm(SYSTEM_PROMPT, prompt, provider)
     except Exception as exc:
@@ -208,6 +210,7 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
         state.reflection_notes = notes
         return state
 
+    print(f"[Reflector] Applying fixes for {len(notes)} flagged KPI(s)...")
     results_by_name = {qr.kpi_name: qr for qr in state.query_results}
     kpis_by_name = {kpi.name: kpi for kpi in state.kpi_specs}
     dropped_kpi_names: set[str] = set()
@@ -225,6 +228,7 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
             print(f"[Reflector] Dropping '{note.kpi_name}': no fix available for {note.issue_type}.")
             continue
 
+        print(f"[Reflector] Re-executing '{note.kpi_name}' with fixed SQL...")
         try:
             retry_result = rerun_single_kpi(state, note.kpi_name, note.fixed_sql_query)
         except Exception as exc:
@@ -255,4 +259,5 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
     ]
     state.reflection_notes = notes
 
+    print(f"[Reflector] Done: {len(dropped_kpi_names)} KPI(s) dropped, {len(state.kpi_specs)} remaining.")
     return state

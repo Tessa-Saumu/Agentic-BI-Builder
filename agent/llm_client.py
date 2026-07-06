@@ -31,7 +31,7 @@ import time
 # isn't set. The .env.example ships GEMINI_MODEL / MISTRAL_MODEL /
 # GEMINI_MODEL_FALLBACK / MISTRAL_MODEL_FALLBACK explicitly, so in normal
 # operation these defaults are rarely what actually gets used.
-_DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+_DEFAULT_GEMINI_MODEL = "gemini-3.1-flash"
 _DEFAULT_GEMINI_MODEL_FALLBACK = "gemini-3.1-pro"
 _DEFAULT_MISTRAL_MODEL = "mistral-large-latest"
 _DEFAULT_MISTRAL_MODEL_FALLBACK = "mistral-medium-latest"
@@ -77,31 +77,50 @@ def _call_with_model_fallback(call_fn, model_chain: list[str], provider_label: s
 
     Raises a RuntimeError with a clear summary (including a suggestion to
     switch LLM_PROVIDER) if every model in the chain is exhausted.
+
+    Prints a message immediately before every attempt (not just on retry or
+    failure) and immediately after a successful call completes, with elapsed
+    time — so the console is never silent while a call is in flight. Without
+    this, a slow-but-working call and a hung one look identical from the
+    outside.
     """
     last_exc: Exception | None = None
 
     for model_name in model_chain:
         for attempt in range(1, MAX_RETRIES_PER_MODEL + 1):
+            attempt_label = f"attempt {attempt}/{MAX_RETRIES_PER_MODEL}" if attempt > 1 or len(model_chain) > 1 else ""
+            print(
+                f"[{provider_label}] Calling '{model_name}'"
+                + (f" ({attempt_label})" if attempt_label else "")
+                + "... (waiting for response)"
+            )
+            start = time.monotonic()
             try:
-                return call_fn(model_name)
+                result = call_fn(model_name)
+                elapsed = time.monotonic() - start
+                print(f"[{provider_label}] '{model_name}' responded in {elapsed:.1f}s.")
+                return result
             except Exception as exc:
+                elapsed = time.monotonic() - start
                 last_exc = exc
                 if not _is_transient_error(exc):
                     # Not a transient/overload error — retrying or falling
                     # back to another model won't help (e.g. bad request,
                     # auth failure). Raise immediately.
+                    print(f"[{provider_label}] '{model_name}' failed after {elapsed:.1f}s with a non-retryable error: {exc}")
                     raise
                 if attempt < MAX_RETRIES_PER_MODEL:
                     wait_seconds = BACKOFF_BASE_SECONDS ** attempt
                     print(
-                        f"[{provider_label}] '{model_name}' transient error on attempt "
+                        f"[{provider_label}] '{model_name}' transient error after {elapsed:.1f}s on attempt "
                         f"{attempt}/{MAX_RETRIES_PER_MODEL} ({exc}); retrying in {wait_seconds}s..."
                     )
                     time.sleep(wait_seconds)
                 else:
                     print(
                         f"[{provider_label}] '{model_name}' exhausted {MAX_RETRIES_PER_MODEL} "
-                        f"attempts, all transient errors. Trying fallback model, if any."
+                        f"attempts (last failure after {elapsed:.1f}s), all transient errors. "
+                        f"Trying fallback model, if any."
                     )
 
     other_provider = "mistral" if provider_label == "gemini" else "gemini"
