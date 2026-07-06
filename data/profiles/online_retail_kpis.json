@@ -2,7 +2,7 @@
   "domain_hypothesis": {
     "domain": "e-commerce retail",
     "confidence": 0.98,
-    "reasoning": "The dataset contains columns typical of e-commerce retail transactions: InvoiceNo (transaction identifier), StockCode (product identifier), Description (product description), Quantity (items purchased), InvoiceDate (transaction timestamp), UnitPrice (product price), CustomerID (customer identifier), and Country (geographic market). The presence of these fields strongly suggests a retail sales domain, likely tracking online or offline purchases."
+    "reasoning": "The dataset contains columns typical of retail transactional data: InvoiceNo (transaction identifier), StockCode (product identifier), Description (product description), Quantity (items per transaction), InvoiceDate (transaction timestamp), UnitPrice (product pricing), CustomerID (customer identifier), and Country (geographic market). The presence of these fields strongly suggests an e-commerce or retail sales domain."
   },
   "kpi_specs": [
     {
@@ -14,7 +14,7 @@
     },
     {
       "name": "Revenue by Country",
-      "description": "Total revenue (Quantity * UnitPrice) grouped by Country, identifying the top-performing geographic markets.",
+      "description": "Total revenue (Quantity * UnitPrice) grouped by Country, identifying top revenue-generating markets.",
       "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Country ORDER BY revenue DESC",
       "chart_type": "barChart",
       "reasoning": "Revenue by country is critical for understanding geographic performance. A bar chart effectively compares revenue across the low-cardinality 'Country' dimension."
@@ -24,7 +24,14 @@
       "description": "Total revenue (Quantity * UnitPrice) aggregated by month to analyze sales trends over time.",
       "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS month, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY month ORDER BY month",
       "chart_type": "lineChart",
-      "reasoning": "Tracking revenue over time is essential for identifying trends and seasonality. A line chart is the best visual for displaying temporal trends."
+      "reasoning": "Tracking revenue over time is essential for identifying seasonal patterns or growth trends. A line chart is the best visual for time-series data."
+    },
+    {
+      "name": "Top 10 Products by Revenue",
+      "description": "Top 10 products (StockCode and Description) ranked by total revenue (Quantity * UnitPrice), highlighting best-selling items.",
+      "sql_query": "SELECT StockCode, Description, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY StockCode, Description ORDER BY revenue DESC LIMIT 10",
+      "chart_type": "barChart",
+      "reasoning": "Identifying top-performing products helps prioritize inventory and marketing efforts. A bar chart ranks products by revenue for easy comparison."
     },
     {
       "name": "Average Order Value (AOV)",
@@ -32,13 +39,6 @@
       "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data",
       "chart_type": "card",
       "reasoning": "AOV is a key retail metric for understanding customer spending behavior. A 'card' visual is appropriate for this single summary value."
-    },
-    {
-      "name": "Top 10 Products by Revenue",
-      "description": "Top 10 products (StockCode) ranked by total revenue (Quantity * UnitPrice), highlighting best-selling items.",
-      "sql_query": "SELECT StockCode, Description, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY StockCode, Description ORDER BY revenue DESC LIMIT 10",
-      "chart_type": "table",
-      "reasoning": "Identifying top-performing products helps prioritize inventory and marketing efforts. A table is suitable for displaying ranked, multi-column data like product codes and descriptions."
     }
   ]
 }

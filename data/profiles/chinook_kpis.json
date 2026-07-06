@@ -2,43 +2,43 @@
   "domain_hypothesis": {
     "domain": "e-commerce retail",
     "confidence": 0.95,
-    "reasoning": "The dataset contains invoice-level transaction data with fields like InvoiceId, CustomerId, InvoiceDate, billing address details, and a Total amount. These are classic e-commerce retail signals, as they represent sales transactions with customer and geographic dimensions."
+    "reasoning": "The dataset contains invoice-level transaction data, including InvoiceId, CustomerId, InvoiceDate, billing address details, and a Total amount. These columns strongly suggest a retail or e-commerce context, where invoices are generated for customer purchases. The presence of billing location fields (city, state, country, postal code) further supports this, as does the Total column, which likely represents the invoice total amount."
   },
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "Sum of all invoice totals, representing the overall revenue generated.",
+      "description": "The sum of all invoice totals, representing the overall revenue generated.",
       "sql_query": "SELECT SUM(\"Total\") AS total_revenue FROM data",
       "chart_type": "card",
-      "reasoning": "Total revenue is a fundamental KPI for any retail business, providing a single summary metric of financial performance."
+      "reasoning": "Total revenue is a fundamental KPI for any retail or e-commerce business. It provides a single summary metric of overall performance, making it ideal for a card visualization."
     },
     {
       "name": "Revenue by Country",
-      "description": "Total revenue grouped by billing country, identifying top markets.",
+      "description": "Total revenue grouped by billing country, identifying top revenue-generating markets.",
       "sql_query": "SELECT \"BillingCountry\", SUM(\"Total\") AS revenue FROM data GROUP BY \"BillingCountry\" ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "Revenue by country is critical for understanding geographic performance, and a bar chart effectively compares categorical values."
+      "reasoning": "Revenue by country is a standard retail KPI for understanding geographic performance. The BillingCountry column has low cardinality (24 distinct values), making it well-suited for a bar chart comparison."
     },
     {
       "name": "Monthly Revenue Trend",
       "description": "Total revenue aggregated by month to show trends over time.",
       "sql_query": "SELECT strftime('%Y-%m', \"InvoiceDate\") AS month, SUM(\"Total\") AS revenue FROM data GROUP BY month ORDER BY month",
       "chart_type": "lineChart",
-      "reasoning": "Tracking revenue over time is essential for identifying growth patterns, and a line chart is ideal for visualizing trends."
+      "reasoning": "Tracking revenue over time is critical for identifying trends and seasonality. The InvoiceDate column allows for monthly aggregation, which is ideal for a line chart showing temporal patterns."
     },
     {
-      "name": "Average Order Value (AOV)",
-      "description": "Average total per invoice, indicating customer spending behavior.",
-      "sql_query": "SELECT AVG(\"Total\") AS average_order_value FROM data",
-      "chart_type": "card",
-      "reasoning": "AOV is a key retail metric for understanding customer purchase behavior, best displayed as a single summary number."
+      "name": "Average Invoice Value by Customer",
+      "description": "Average invoice total per customer, highlighting high-value customers.",
+      "sql_query": "SELECT \"CustomerId\", AVG(\"Total\") AS avg_invoice_value FROM data GROUP BY \"CustomerId\" ORDER BY avg_invoice_value DESC",
+      "chart_type": "barChart",
+      "reasoning": "Average invoice value by customer helps identify high-value customers and segments. The CustomerId column has moderate cardinality (59 distinct values), making it suitable for a bar chart comparison."
     },
     {
-      "name": "Top Customers by Revenue",
-      "description": "Ranking of customers by their total spending, identifying high-value customers.",
-      "sql_query": "SELECT \"CustomerId\", SUM(\"Total\") AS total_spent FROM data GROUP BY \"CustomerId\" ORDER BY total_spent DESC LIMIT 10",
+      "name": "Top 10 Customers by Revenue",
+      "description": "Ranking of customers by total revenue generated, identifying the most valuable customers.",
+      "sql_query": "SELECT \"CustomerId\", SUM(\"Total\") AS total_revenue FROM data GROUP BY \"CustomerId\" ORDER BY total_revenue DESC LIMIT 10",
       "chart_type": "table",
-      "reasoning": "Identifying top customers is crucial for retention strategies, and a table effectively ranks multi-column breakdowns."
+      "reasoning": "Identifying top customers by revenue is essential for customer relationship management. A table is appropriate here to display the ranked list with exact revenue values for clarity."
     }
   ]
 }
