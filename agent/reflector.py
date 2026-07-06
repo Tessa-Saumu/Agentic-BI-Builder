@@ -24,7 +24,8 @@ import json
 import os
 from datetime import datetime, timezone
 
-from agent.domain_kpi import _profile_to_prompt_context, _call_llm
+from agent.domain_kpi import _profile_to_prompt_context
+from agent.llm_client import call_llm
 from agent.models import DataProfile, KPISpec, QueryResult, ReflectionNote, ReflectionResponse
 from agent.sql_executor import rerun_single_kpi
 from agent.state import AgentState
@@ -126,12 +127,12 @@ def _build_reflection_prompt(
 
 def _call_reflection_llm(system_prompt: str, user_content: str, provider: str) -> ReflectionResponse:
     """
-    Reuses domain_kpi.py's provider-dispatch _call_llm, which accepts a
-    response_model parameter so it isn't hardcoded to DomainKPIResponse —
-    passing ReflectionResponse here reuses the same Gemini/Mistral call
-    plumbing without duplicating it.
+    Reuses agent/llm_client.py's provider-dispatch call_llm — the same
+    shared Gemini/Mistral calling logic (including model fallback and
+    retry-with-backoff) that agent/domain_kpi.py uses, just parsed into
+    ReflectionResponse instead of DomainKPIResponse.
     """
-    return _call_llm(system_prompt, user_content, provider, response_model=ReflectionResponse)
+    return call_llm(system_prompt, user_content, provider, response_model=ReflectionResponse)
 
 
 def _log_reflection(dataset_name: str, notes: list[ReflectionNote], output_dir: str = "data/profiles") -> str | None:
