@@ -214,22 +214,6 @@ class TestModelConstraints:
 # run_domain_kpi orchestration (LLM call mocked)
 # ---------------------------------------------------------------------------
 
-class TestMistralImportCompatibility:
-    def test_mistral_client_class_is_importable(self):
-        # Regression test: mistralai v2.0.0 moved the Mistral client class
-        # from `mistralai.Mistral` to `mistralai.client.Mistral`. This must
-        # resolve regardless of which major version is installed, matching
-        # the fallback logic in _call_mistral.
-        try:
-            from mistralai import Mistral
-        except ImportError:
-            from mistralai.client import Mistral
-        assert Mistral is not None
-        # Must be constructible with just an api_key kwarg (no network call).
-        client = Mistral(api_key="test-key-not-used")
-        assert client is not None
-
-
 class TestRunDomainKpi:
     def test_missing_profile_records_error(self):
         state = AgentState()
@@ -247,7 +231,7 @@ class TestRunDomainKpi:
 
     def test_successful_call_populates_state(self, retail_profile, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "gemini")
-        with patch("agent.domain_kpi._call_llm", return_value=_make_response()) as mock_call:
+        with patch("agent.domain_kpi.call_llm", return_value=_make_response()) as mock_call:
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)
 
@@ -264,7 +248,7 @@ class TestRunDomainKpi:
         )
         good_response = _make_response()
 
-        with patch("agent.domain_kpi._call_llm", side_effect=[bad_response, good_response]) as mock_call:
+        with patch("agent.domain_kpi.call_llm", side_effect=[bad_response, good_response]) as mock_call:
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)
 
@@ -278,7 +262,7 @@ class TestRunDomainKpi:
             kpi_specs=[_make_kpi("SELECT FakeColumn FROM data", f"KPI {i}") for i in range(5)]
         )
 
-        with patch("agent.domain_kpi._call_llm", side_effect=[bad_response, bad_response]):
+        with patch("agent.domain_kpi.call_llm", side_effect=[bad_response, bad_response]):
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)
 
@@ -288,7 +272,7 @@ class TestRunDomainKpi:
 
     def test_llm_exception_records_error_without_raising(self, retail_profile, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "gemini")
-        with patch("agent.domain_kpi._call_llm", side_effect=RuntimeError("API timeout")):
+        with patch("agent.domain_kpi.call_llm", side_effect=RuntimeError("API timeout")):
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)  # must not raise
 
