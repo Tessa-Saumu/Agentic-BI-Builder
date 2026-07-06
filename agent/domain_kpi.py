@@ -10,6 +10,11 @@ models passed directly to each SDK) — no free-form text parsing, no
 LangChain. Generated SQL is deterministically validated against the actual
 column names in the DataProfile before being accepted; a single repair
 pass is attempted if validation fails.
+
+All LLM provider-calling logic (Gemini/Mistral dispatch, model fallback,
+retry-with-backoff) lives in agent/llm_client.py, shared with the Reflector
+node — this module only contains Domain/KPI-specific prompt construction,
+SQL validation, and orchestration.
 """
 from __future__ import annotations
 
@@ -17,6 +22,7 @@ import json
 import os
 import re
 
+from agent.llm_client import call_llm
 from agent.models import DataProfile, DomainKPIResponse
 from agent.state import AgentState
 
@@ -209,102 +215,6 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
     return violations
 
 
-def _call_gemini(system_prompt: str, user_content: str, response_model: type = None):
-    from google import genai
-
-    if response_model is None:
-        response_model = DomainKPIResponse
-
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not set. Set it in your environment or .env file "
-            "(e.g. `$env:GEMINI_API_KEY = \"...\"` in PowerShell, or `export "
-            "GEMINI_API_KEY=...` in bash) before calling run_domain_kpi with "
-            "LLM_PROVIDER=gemini. Get a key at https://aistudio.google.com/apikey."
-        )
-
-    client = genai.Client(api_key=api_key)
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash")
-
-    response = client.models.generate_content(
-        model=model_name,
-        contents=user_content,
-        config={
-            "system_instruction": system_prompt,
-            "response_mime_type": "application/json",
-            "response_schema": response_model,
-        },
-    )
-    parsed = getattr(response, "parsed", None)
-    if parsed is not None:
-        return parsed
-    return response_model.model_validate_json(response.text)
-
-
-def _call_mistral(system_prompt: str, user_content: str, response_model: type = None):
-    # mistralai v2.0.0 (2026-03) moved the Mistral client class's import path.
-    # v1.x: `from mistralai import Mistral`
-    # v2.x: `from mistralai.client import Mistral`
-    # Support both so this doesn't break on whichever version is installed.
-    try:
-        from mistralai import Mistral  # v1.x
-    except ImportError:
-        from mistralai.client import Mistral  # v2.x
-
-    if response_model is None:
-        response_model = DomainKPIResponse
-
-    api_key = os.environ.get("MISTRAL_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "MISTRAL_API_KEY is not set. Set it in your environment or .env file "
-            "(e.g. `$env:MISTRAL_API_KEY = \"...\"` in PowerShell, or `export "
-            "MISTRAL_API_KEY=...` in bash) before calling run_domain_kpi with "
-            "LLM_PROVIDER=mistral. Get a key at https://console.mistral.ai/api-keys."
-        )
-
-    client = Mistral(api_key=api_key)
-    model_name = os.environ.get("MISTRAL_MODEL", "mistral-large-latest")
-
-    chat_response = client.chat.parse(
-        model=model_name,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ],
-        response_format=response_model,
-        temperature=0,
-    )
-    parsed = chat_response.choices[0].message.parsed
-    if parsed is not None:
-        return parsed
-    return response_model.model_validate_json(chat_response.choices[0].message.content)
-
-
-def _call_llm(system_prompt: str, user_content: str, provider: str, response_model: type = None):
-    """
-    Dispatch a structured-output LLM call to the configured provider.
-
-    response_model defaults to DomainKPIResponse (this module's own response
-    type) when not given, so existing call sites in this file are unaffected.
-    Other nodes (e.g. agent/reflector.py) pass their own Pydantic response
-    model to reuse this same provider-dispatch logic instead of duplicating
-    the Gemini/Mistral call plumbing.
-    """
-    if response_model is None:
-        response_model = DomainKPIResponse
-
-    if provider == "gemini":
-        return _call_gemini(system_prompt, user_content, response_model=response_model)
-    elif provider == "mistral":
-        return _call_mistral(system_prompt, user_content, response_model=response_model)
-    else:
-        raise ValueError(
-            f"Unsupported LLM_PROVIDER '{provider}'. Expected 'gemini' or 'mistral'."
-        )
-
-
 def run_domain_kpi(state: AgentState) -> AgentState:
     """
     LangGraph node: infer domain + propose 5 KPIs from state.data_profile.
@@ -324,7 +234,7 @@ def run_domain_kpi(state: AgentState) -> AgentState:
     user_content = f"Dataset profile:\n\n{context}\n\nPropose the domain hypothesis and 5 KPIs now."
 
     try:
-        result = _call_llm(SYSTEM_PROMPT, user_content, provider)
+        result = call_llm(SYSTEM_PROMPT, user_content, provider, response_model=DomainKPIResponse)
     except Exception as exc:
         state.errors.append(f"run_domain_kpi: LLM call failed for provider '{provider}': {exc}")
         return state
@@ -343,7 +253,7 @@ def run_domain_kpi(state: AgentState) -> AgentState:
             "structured response:\n" + "\n".join(f"- {v}" for v in violations)
         )
         try:
-            result = _call_llm(SYSTEM_PROMPT, repair_content, provider)
+            result = call_llm(SYSTEM_PROMPT, repair_content, provider, response_model=DomainKPIResponse)
         except Exception as exc:
             state.errors.append(f"run_domain_kpi: repair LLM call failed for provider '{provider}': {exc}")
             return state
