@@ -209,8 +209,11 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
     return violations
 
 
-def _call_gemini(system_prompt: str, user_content: str) -> DomainKPIResponse:
+def _call_gemini(system_prompt: str, user_content: str, response_model: type = None):
     from google import genai
+
+    if response_model is None:
+        response_model = DomainKPIResponse
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -230,16 +233,16 @@ def _call_gemini(system_prompt: str, user_content: str) -> DomainKPIResponse:
         config={
             "system_instruction": system_prompt,
             "response_mime_type": "application/json",
-            "response_schema": DomainKPIResponse,
+            "response_schema": response_model,
         },
     )
     parsed = getattr(response, "parsed", None)
     if parsed is not None:
         return parsed
-    return DomainKPIResponse.model_validate_json(response.text)
+    return response_model.model_validate_json(response.text)
 
 
-def _call_mistral(system_prompt: str, user_content: str) -> DomainKPIResponse:
+def _call_mistral(system_prompt: str, user_content: str, response_model: type = None):
     # mistralai v2.0.0 (2026-03) moved the Mistral client class's import path.
     # v1.x: `from mistralai import Mistral`
     # v2.x: `from mistralai.client import Mistral`
@@ -248,6 +251,9 @@ def _call_mistral(system_prompt: str, user_content: str) -> DomainKPIResponse:
         from mistralai import Mistral  # v1.x
     except ImportError:
         from mistralai.client import Mistral  # v2.x
+
+    if response_model is None:
+        response_model = DomainKPIResponse
 
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
@@ -267,20 +273,32 @@ def _call_mistral(system_prompt: str, user_content: str) -> DomainKPIResponse:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ],
-        response_format=DomainKPIResponse,
+        response_format=response_model,
         temperature=0,
     )
     parsed = chat_response.choices[0].message.parsed
     if parsed is not None:
         return parsed
-    return DomainKPIResponse.model_validate_json(chat_response.choices[0].message.content)
+    return response_model.model_validate_json(chat_response.choices[0].message.content)
 
 
-def _call_llm(system_prompt: str, user_content: str, provider: str) -> DomainKPIResponse:
+def _call_llm(system_prompt: str, user_content: str, provider: str, response_model: type = None):
+    """
+    Dispatch a structured-output LLM call to the configured provider.
+
+    response_model defaults to DomainKPIResponse (this module's own response
+    type) when not given, so existing call sites in this file are unaffected.
+    Other nodes (e.g. agent/reflector.py) pass their own Pydantic response
+    model to reuse this same provider-dispatch logic instead of duplicating
+    the Gemini/Mistral call plumbing.
+    """
+    if response_model is None:
+        response_model = DomainKPIResponse
+
     if provider == "gemini":
-        return _call_gemini(system_prompt, user_content)
+        return _call_gemini(system_prompt, user_content, response_model=response_model)
     elif provider == "mistral":
-        return _call_mistral(system_prompt, user_content)
+        return _call_mistral(system_prompt, user_content, response_model=response_model)
     else:
         raise ValueError(
             f"Unsupported LLM_PROVIDER '{provider}'. Expected 'gemini' or 'mistral'."
