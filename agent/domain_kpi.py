@@ -15,6 +15,34 @@ All LLM provider-calling logic (Gemini/Mistral dispatch, model fallback,
 retry-with-backoff) lives in agent/llm_client.py, shared with the Reflector
 node — this module only contains Domain/KPI-specific prompt construction,
 SQL validation, and orchestration.
+
+LIMITATIONS OF THE SQL COLUMN VALIDATOR (_validate_sql_columns):
+This is a regex-based lexical check, not a real SQL parser, and should not
+be assumed to catch every possible SQL error or extended to validate
+anything beyond "does this SQL reference only real column names." Known
+gaps future contributors should be aware of before relying on it further:
+  - It does not validate SQL *syntax* at all — a query can pass this check
+    and still fail at actual execution time (missing commas, unbalanced
+    parens, invalid function calls, etc.). Real syntax errors are only
+    caught downstream, when agent/sql_executor.py actually runs the query.
+  - It does not understand subqueries, CTEs (WITH ... AS), or UNIONs —
+    identifiers inside those constructs are tokenized the same as any other
+    identifier, which may over- or under-report violations in complex SQL.
+  - It has no real notion of SQL grammar (SELECT clause vs. WHERE vs.
+    GROUP BY, etc.) — it extracts identifier-shaped tokens from the whole
+    query string (excluding string-literal contents) and checks each one
+    against the profile's column names, a fixed SQL-keyword stopword list,
+    declared table aliases, and AS-aliased result columns.
+  - It only checks that referenced identifiers *exist* — it says nothing
+    about whether the query is semantically correct (right aggregation,
+    right grouping, plausible result). That judgment is the Reflector
+    node's job (agent/reflector.py), not this validator's.
+  - It was built and hardened incrementally against real LLM output
+    (string literals like strftime format codes, table-qualified
+    references like `alias.column`, declared aliases) rather than derived
+    from a formal grammar, so novel SQL constructs may still surface new
+    false positives/negatives. Extend the stopword/regex sets deliberately
+    if that happens, rather than assuming coverage is complete.
 """
 from __future__ import annotations
 
@@ -152,6 +180,11 @@ def _validate_sql_columns(kpi_specs: list, profile: DataProfile) -> list[str]:
     isn't a SQL keyword/function). Best-effort lexical check, not a full SQL
     parser — sufficient to catch hallucinated column names, which is the
     acceptance criterion.
+
+    See the LIMITATIONS section in this module's docstring before extending
+    or relying on this beyond that specific purpose — in short: this catches
+    unknown column names, nothing about SQL syntax validity or semantic
+    correctness.
     """
     valid_cols = _valid_column_names(profile)
     valid_cols_lower = {c.lower() for c in valid_cols}
