@@ -9,6 +9,10 @@ that a purely mechanical SQL-execution check can't catch on its own:
   - wrong_aggregation:  the SQL technically runs but computes the wrong thing
   - implausible_result: a value that doesn't make sense for what it claims to measure
   - sql_error:          the query failed to execute (QueryResult.status == "fail")
+  - other:              a genuine issue that doesn't fit the four categories above
+                        (e.g. a duplicate KPI, a misleading chart_type choice) —
+                        still reported and retried if fixable, rather than being
+                        silently dropped by a closed taxonomy
 
 The Reflector runs on every KPI, not just failed ones, because a KPI can
 execute successfully and still be semantically wrong.
@@ -57,6 +61,11 @@ COUNT instead of SUM, or grouping by the wrong column).
 sense for what it claims to measure (e.g. a negative total revenue with no \
 explanation, an average that is wildly outside the plausible range implied \
 by the row count).
+- other: a genuine, real issue that doesn't fit any of the four categories \
+above (e.g. two KPIs that measure essentially the same thing, or a \
+chart_type that is a poor fit for what the query returns). Only use "other" \
+for issues you are confident are real problems — it is not a catch-all for \
+minor stylistic preferences.
 
 Do NOT flag a KPI just because you would have written the SQL differently \
 if it's already correct and meaningful. Do NOT flag a KPI solely because a \
