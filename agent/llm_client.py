@@ -186,6 +186,17 @@ def call_mistral(system_prompt: str, user_content: str, response_model: type):
     # v1.x: `from mistralai import Mistral`
     # v2.x: `from mistralai.client import Mistral`
     # Support both so this doesn't break on whichever version is installed.
+    #
+    # NOTE: this is deliberately NOT covered by a unit test. Verifying which
+    # import path a specific mistralai version exposes is checking a
+    # third-party package's internal structure, not this application's
+    # behavior — such a test would fail the moment mistralai ships a v3 with
+    # yet another layout, which is a dependency-version event, not a bug
+    # here. If mistralai is upgraded, verify this manually:
+    #   python -c "from mistralai import Mistral" (v1.x)
+    #   python -c "from mistralai.client import Mistral" (v2.x)
+    # and update this try/except if a new major version changes the path
+    # again.
     try:
         from mistralai import Mistral  # v1.x
     except ImportError:
