@@ -7,8 +7,8 @@
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "Calculates the sum of all invoice totals to measure the overall sales volume of the business.",
-      "sql_query": "SELECT SUM(Total) AS Total FROM data",
+      "description": "Calculates the sum of all invoice totals to measure the overall sales volume of the business. [SABOTAGED for reflector testing: implausible_result -- InvoiceId leaks into the aggregate, producing a nonsensical inflated figure]",
+      "sql_query": "SELECT SUM(Total * InvoiceId) AS Total FROM data",
       "chart_type": "card",
       "reasoning": "Total revenue is the primary high-level metric for sales performance, best represented as a single summary number."
     },
@@ -21,22 +21,22 @@
     },
     {
       "name": "Revenue by Billing Country",
-      "description": "Aggregates sales revenue by the customer billing country to find the top-performing geographic markets.",
-      "sql_query": "SELECT BillingCountry, SUM(Total) AS Total FROM data GROUP BY BillingCountry ORDER BY Total DESC",
+      "description": "Aggregates sales revenue by the customer billing country to find the top-performing geographic markets. [SABOTAGED for reflector testing: null_heavy -- grouped by BillingState, which is NULL for most non-US customers]",
+      "sql_query": "SELECT BillingState, SUM(Total) AS Total FROM data GROUP BY BillingState ORDER BY Total DESC",
       "chart_type": "barChart",
       "reasoning": "Comparing sales volume across categorical country groups is most effectively displayed on a descending bar chart."
     },
     {
       "name": "Top Customers by Total Spend",
-      "description": "Lists the highest-spending customers, along with their order counts and total transaction values.",
-      "sql_query": "SELECT CustomerId, COUNT(InvoiceId) AS InvoiceId, SUM(Total) AS Total FROM data GROUP BY CustomerId ORDER BY Total DESC LIMIT 10",
+      "description": "Lists the highest-spending customers, along with their order counts and total transaction values. [SABOTAGED for reflector testing: sql_error -- references nonexistent column OrderDate instead of InvoiceDate]",
+      "sql_query": "SELECT CustomerId, COUNT(InvoiceId) AS InvoiceId, SUM(Total) AS Total FROM data GROUP BY CustomerId ORDER BY OrderDate DESC LIMIT 10",
       "chart_type": "table",
       "reasoning": "A table is appropriate here to present a ranked list of top customers with multiple metrics (order frequency and spend)."
     },
     {
       "name": "Average Order Value (AOV)",
-      "description": "Calculates the average transaction value per invoice to monitor buyer basket sizes.",
-      "sql_query": "SELECT AVG(Total) AS Total FROM data",
+      "description": "Calculates the average transaction value per invoice to monitor buyer basket sizes. [SABOTAGED for reflector testing: wrong_aggregation -- divides by customer count, not invoice count, conflating 'per customer' with 'per order']",
+      "sql_query": "SELECT SUM(Total) / COUNT(CustomerId) AS Total FROM data",
       "chart_type": "card",
       "reasoning": "Average Order Value is a vital retail KPI that measures purchasing behavior, best summarized in a single card visual."
     }
