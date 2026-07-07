@@ -145,8 +145,11 @@ class ReflectionNote(BaseModel):
     """A single issue the Reflector identified in one KPI's query or results."""
 
     kpi_name: str = Field(description="Matches the KPISpec.name / QueryResult.kpi_name being flagged.")
-    issue_type: Literal["null_heavy", "wrong_aggregation", "implausible_result", "sql_error"] = Field(
-        description="Category of the identified issue."
+    issue_type: Literal["null_heavy", "wrong_aggregation", "implausible_result", "sql_error", "other"] = Field(
+        description="Category of the identified issue. Use 'other' for a genuine issue that "
+                    "doesn't fit the four specific categories (e.g. a duplicate KPI, a "
+                    "misleading chart_type choice) — 'other' still gets reported and, if "
+                    "fixable, retried, rather than being silently dropped."
     )
     description: str = Field(description="What is wrong and why, in plain terms.")
     fix_instruction: str = Field(
