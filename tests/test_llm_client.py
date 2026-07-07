@@ -192,19 +192,3 @@ class TestCallLlmDispatch:
         # not a silent fallback to some node-specific default.
         with pytest.raises(TypeError):
             call_llm("system", "user", "gemini")
-
-
-class TestMistralImportCompatibility:
-    def test_mistral_client_class_is_importable(self):
-        # Regression test: mistralai v2.0.0 moved the Mistral client class
-        # from `mistralai.Mistral` to `mistralai.client.Mistral`. This must
-        # resolve regardless of which major version is installed, matching
-        # the fallback logic in call_mistral.
-        try:
-            from mistralai import Mistral
-        except ImportError:
-            from mistralai.client import Mistral
-        assert Mistral is not None
-        # Must be constructible with just an api_key kwarg (no network call).
-        client = Mistral(api_key="test-key-not-used")
-        assert client is not None

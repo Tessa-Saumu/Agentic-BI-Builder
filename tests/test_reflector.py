@@ -74,6 +74,24 @@ def executed_state(retail_csv, retail_profile):
 
 
 # ---------------------------------------------------------------------------
+# ReflectionNote model constraints
+# ---------------------------------------------------------------------------
+
+class TestReflectionNoteModel:
+    def test_all_five_issue_types_accepted(self):
+        for issue_type in ("null_heavy", "wrong_aggregation", "implausible_result", "sql_error", "other"):
+            ReflectionNote(
+                kpi_name="x", issue_type=issue_type, description="d", fix_instruction="f"
+            )
+
+    def test_invalid_issue_type_rejected(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            ReflectionNote(kpi_name="x", issue_type="duplicate_kpi", description="d", fix_instruction="f")
+
+
+# ---------------------------------------------------------------------------
 # Prompt construction
 # ---------------------------------------------------------------------------
 
@@ -208,6 +226,29 @@ class TestRunReflector:
         remaining_names = {k.name for k in result.kpi_specs}
         assert remaining_names == {"Total Revenue"}
         assert {qr.kpi_name for qr in result.query_results} == {"Total Revenue"}
+
+    def test_other_category_issue_is_reported_and_can_be_fixed(self, executed_state, tmp_path, monkeypatch):
+        # An issue outside the four specific categories (e.g. a duplicate KPI)
+        # must still be reported via issue_type="other", not cause the whole
+        # structured response to fail validation.
+        monkeypatch.chdir(tmp_path)
+        response = ReflectionResponse(notes=[
+            ReflectionNote(
+                kpi_name="Qty By Country",
+                issue_type="other",
+                description="chart_type 'barChart' is a poor fit; this is better as a table.",
+                fix_instruction="No SQL change needed — this is a presentation issue, not a query issue.",
+                fixed_sql_query="SELECT Country, SUM(Quantity) AS total_qty FROM data GROUP BY Country",
+            )
+        ])
+        with patch("agent.reflector._call_reflection_llm", return_value=response):
+            result = run_reflector(executed_state, dataset_name="other_category_run")
+
+        assert len(result.reflection_notes) == 1
+        assert result.reflection_notes[0].issue_type == "other"
+        # Still went through the normal retry path since a fixed_sql_query was given.
+        remaining_names = {k.name for k in result.kpi_specs}
+        assert remaining_names == {"Total Revenue", "Qty By Country"}
 
     def test_llm_exception_records_error_without_raising(self, executed_state):
         with patch("agent.reflector._call_reflection_llm", side_effect=RuntimeError("API down")):
