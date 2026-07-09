@@ -1,0 +1,153 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
+  "name": "e5b310721f3aa7f0fd65",
+  "position": {
+    "x": 856.263589004841,
+    "y": 231.90472202214443,
+    "z": 2,
+    "height": 255.23241595336606,
+    "width": 318.35441129667163,
+    "tabOrder": 2
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "in"
+                    }
+                  },
+                  "Property": "Diagnosis"
+                }
+              },
+              "queryRef": "in.Diagnosis",
+              "nativeQueryRef": "Diagnosis"
+            },
+            {
+              "field": {
+                "NativeVisualCalculation": {
+                  "Language": "dax",
+                  "Expression": "EXPANDALL(AVERAGE([Total Cost_Base]), ROWS COLUMNS)",
+                  "Name": "Total Cost"
+                },
+                "Annotations": {
+                  "customTotalMetadata": {
+                    "baseQueryName": "in.Total Cost"
+                  }
+                }
+              },
+              "queryRef": "select",
+              "nativeQueryRef": "Total Cost",
+              "format": "\\$#,0.###############;(\\$#,0.###############);\\$#,0.###############"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "in"
+                    }
+                  },
+                  "Property": "Total Cost"
+                }
+              },
+              "queryRef": "in.Total Cost",
+              "nativeQueryRef": "Total Cost_Base",
+              "hidden": true,
+              "displayName": "Total Cost_Base"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "in"
+                    }
+                  },
+                  "Property": "Average Age"
+                }
+              },
+              "queryRef": "in.Average Age",
+              "nativeQueryRef": "Average Age"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Average Age and Cost by Diagnosis'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "f33f05643409974ab57b",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "in"
+              }
+            },
+            "Property": "Diagnosis"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "f9601a58042012864d0f",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "in"
+              }
+            },
+            "Property": "Total Cost"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "746e89ce96f55ccfba70",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "in"
+              }
+            },
+            "Property": "Average Age"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}
