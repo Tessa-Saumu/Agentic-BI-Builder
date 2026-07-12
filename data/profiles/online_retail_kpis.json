@@ -2,43 +2,43 @@
   "domain_hypothesis": {
     "domain": "e-commerce retail",
     "confidence": 1.0,
-    "reasoning": "The columns present in the dataset (InvoiceNo, StockCode, Description, Quantity, InvoiceDate, UnitPrice, CustomerID, and Country) perfectly match transactional data schemas standard in online or retail businesses, specifically mirroring the well-known Online Retail transaction dataset."
+    "reasoning": "The dataset contains transactional columns standard in retail e-commerce datasets: InvoiceNo, StockCode, Quantity, UnitPrice, InvoiceDate, CustomerID, and Country, indicating transactional sales records."
   },
   "kpi_specs": [
     {
-      "name": "Total Revenue",
-      "description": "Calculates the total revenue generated across all transactions by summing the product of quantity and unit price. [SABOTAGED for reflector testing: implausible_result -- does not exclude negative-quantity return/cancellation rows, silently distorting total revenue]",
-      "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data WHERE 1=1",
+      "name": "Total Sales Revenue",
+      "description": "Calculates the total monetary value of all transactions in the dataset.",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_sales FROM data",
       "chart_type": "card",
-      "reasoning": "Total revenue is the primary high-level metric for assessing business scale and health, best represented as a single KPI card."
+      "reasoning": "Total sales is the primary baseline financial metric for retail. A single metric card is the best way to visualize this high-level aggregate."
     },
     {
       "name": "Average Order Value (AOV)",
-      "description": "Calculates the average spend per unique invoice/transaction. [SABOTAGED for reflector testing: wrong_aggregation -- divides by line-item row count, not distinct invoice count, conflating 'per line item' with 'per order']",
-      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(*) AS average_order_value FROM data WHERE Quantity > 0",
+      "description": "Calculates the average spend per individual transaction (invoice).",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data",
       "chart_type": "card",
-      "reasoning": "Average Order Value measures purchasing patterns and helps evaluate pricing strategies. Filtering for positive quantities excludes potential cancellations."
-    },
-    {
-      "name": "Top 10 Countries by Revenue",
-      "description": "Identifies the highest revenue-generating countries outside of any single dominant market. [SABOTAGED for reflector testing: sql_error -- typo'd column name 'Countries' instead of 'Country']",
-      "sql_query": "SELECT Countries, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Countries ORDER BY revenue DESC LIMIT 10",
-      "chart_type": "barChart",
-      "reasoning": "A bar chart of top revenue countries helps visually compare geographic sales performance and target expansion or marketing efforts."
+      "reasoning": "AOV measures purchasing behavior and order efficiency. A single key performance indicator card allows stakeholders to monitor order-size health instantly."
     },
     {
       "name": "Monthly Sales Trend",
-      "description": "Tracks total revenue month-over-month to highlight seasonality and growth trends.",
-      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS sales_month, SUM(Quantity * UnitPrice) AS monthly_revenue FROM data GROUP BY sales_month ORDER BY sales_month ASC",
+      "description": "Tracks total retail revenue performance month-over-month to identify seasonal trends.",
+      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS invoice_month, SUM(Quantity * UnitPrice) AS monthly_revenue FROM data GROUP BY invoice_month ORDER BY invoice_month",
       "chart_type": "lineChart",
-      "reasoning": "A monthly timeline is essential for detecting seasonal peaks and determining the overall growth trajectory of the retail business."
+      "reasoning": "Line charts are the optimal visual standard for depicting continuous chronological trends and evaluating periodic growth rates."
     },
     {
-      "name": "Top 10 Products by Quantity Sold",
-      "description": "Lists the top ten products based on total quantities ordered, along with their generated revenue. [SABOTAGED for reflector testing: null_heavy -- grouped by CustomerID, which is null for ~25% of transactions in this dataset]",
-      "sql_query": "SELECT CustomerID, SUM(Quantity) AS total_quantity_sold, SUM(Quantity * UnitPrice) AS revenue_contribution FROM data GROUP BY CustomerID ORDER BY total_quantity_sold DESC LIMIT 10",
+      "name": "Top 10 Countries by Sales Revenue",
+      "description": "Identifies the highest revenue-generating geographical markets.",
+      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS country_revenue FROM data GROUP BY Country ORDER BY country_revenue DESC LIMIT 10",
+      "chart_type": "barChart",
+      "reasoning": "A bar chart highlights the comparative distribution of revenue across categorical attributes, allowing easy identification of top performing regions."
+    },
+    {
+      "name": "Top 10 Best-Selling Products by Quantity",
+      "description": "Identifies the top 10 products based on total unit volume sold, accompanied by total revenue generated.",
+      "sql_query": "SELECT StockCode, Description, SUM(Quantity) AS total_quantity, SUM(Quantity * UnitPrice) AS product_revenue FROM data GROUP BY StockCode, Description ORDER BY total_quantity DESC LIMIT 10",
       "chart_type": "table",
-      "reasoning": "A table is chosen to provide a precise breakdown of the best-performing inventory items by volume and their financial contribution to the business."
+      "reasoning": "A table is appropriate for viewing granular item attributes (such as descriptions and stock codes) in a ranked list side-by-side with numerical metrics."
     }
   ]
 }

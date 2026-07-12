@@ -1,44 +1,44 @@
 {
   "domain_hypothesis": {
-    "domain": "HR / Corporate Workforce Analytics",
+    "domain": "HR Employee Performance & Attrition",
     "confidence": 1.0,
-    "reasoning": "The dataset contains columns representing employee demographics (Age, Gender, MaritalStatus), performance and tenure metrics (YearsAtCompany, PerformanceRating, YearsSinceLastPromotion), job specifics (Department, JobRole, JobLevel), and critical HR target outcomes like Attrition."
+    "reasoning": "The dataset contains standard employee demographical, professional, and sentiment attributes like Attrition, MonthlyIncome, OverTime, JobSatisfaction, and various tenure metrics which perfectly match HR/people analytics schemas."
   },
   "kpi_specs": [
     {
       "name": "Overall Attrition Rate",
-      "description": "The percentage of employees who have left the company (where Attrition is 'Yes'). This is a primary metric for overall organizational health and retention performance.",
-      "sql_query": "SELECT ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate_pct FROM data",
+      "description": "The percentage of employees who have left the organization, serving as a high-level health metric for overall employee retention.",
+      "sql_query": "SELECT ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate FROM data",
       "chart_type": "card",
-      "reasoning": "As a critical high-level organizational metric, a card visual provides an immediate and clear snapshot of the company's retention performance."
+      "reasoning": "A single KPI card represents the company-wide attrition benchmark against which all segments are compared."
     },
     {
-      "name": "Average Monthly Income by Department",
-      "description": "The average monthly salary of employees grouped by department, helping identify resource allocation and payroll distribution across major business units.",
-      "sql_query": "SELECT Department, ROUND(AVG(MonthlyIncome), 2) AS avg_monthly_income FROM data GROUP BY Department ORDER BY avg_monthly_income DESC",
+      "name": "Attrition Rate by Department",
+      "description": "Compares attrition percentages across different departments to pinpoint specific areas with retention challenges.",
+      "sql_query": "SELECT Department, COUNT(*) AS total_employees, ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate FROM data GROUP BY Department ORDER BY attrition_rate DESC",
       "chart_type": "barChart",
-      "reasoning": "A bar chart is ideal for comparing aggregate salary metrics across the three discrete departments present in the dataset."
+      "reasoning": "A bar chart highlights which departments have disproportionately higher rates of employee turnover."
     },
     {
-      "name": "Attrition Rate by Job Role",
-      "description": "The percentage of attrition analyzed by job role, highlighting which specific roles are experiencing the highest turnover.",
-      "sql_query": "SELECT JobRole, COUNT(*) AS total_employees, ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate_pct FROM data GROUP BY JobRole ORDER BY attrition_rate_pct DESC",
+      "name": "Average Monthly Income by Job Role",
+      "description": "Analyzes internal compensation equity and competitiveness by mapping average monthly income across job roles.",
+      "sql_query": "SELECT JobRole, ROUND(AVG(MonthlyIncome), 2) AS avg_monthly_income FROM data GROUP BY JobRole ORDER BY avg_monthly_income DESC",
       "chart_type": "barChart",
-      "reasoning": "Comparing attrition rates across 9 distinct job roles is best suited to a bar chart to easily highlight and rank high-risk departments."
+      "reasoning": "A bar chart visually contrasts salary levels across the various categorical roles in the organization."
     },
     {
-      "name": "Employee Sentiment Profile by Job Role",
-      "description": "A comprehensive breakdown of key satisfaction and quality-of-life scores (Job Satisfaction, Work-Life Balance, and Environment Satisfaction) across various roles.",
-      "sql_query": "SELECT JobRole, ROUND(AVG(JobSatisfaction), 2) AS avg_job_satisfaction, ROUND(AVG(WorkLifeBalance), 2) AS avg_work_life_balance, ROUND(AVG(EnvironmentSatisfaction), 2) AS avg_env_satisfaction FROM data GROUP BY JobRole ORDER BY avg_job_satisfaction DESC",
-      "chart_type": "table",
-      "reasoning": "A table is the most suitable visual for multi-column comparisons of numerical survey averages grouped by a dimensional breakdown like Job Role."
-    },
-    {
-      "name": "Attrition Risk by Tenure",
-      "description": "The trend of employee attrition rate calculated over different tenures (Years at Company), identifying critical points in an employee's lifecycle where they are most likely to leave.",
-      "sql_query": "SELECT YearsAtCompany, COUNT(*) AS headcount, ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate_pct FROM data GROUP BY YearsAtCompany ORDER BY YearsAtCompany ASC",
+      "name": "Income Progression by Working Years",
+      "description": "Tracks how monthly income scales with total working years to understand career-progression and tenure-based compensation trends.",
+      "sql_query": "SELECT TotalWorkingYears, ROUND(AVG(MonthlyIncome), 2) AS avg_monthly_income FROM data GROUP BY TotalWorkingYears ORDER BY TotalWorkingYears ASC",
       "chart_type": "lineChart",
-      "reasoning": "Tenure (YearsAtCompany) represents continuous, ordered time-like segments, making a line chart the optimal choice for visualizing the trajectory of attrition risk over an employee's career span."
+      "reasoning": "Total working years acts as a continuous time-like or sequential axis, making a line chart ideal for displaying progression trends."
+    },
+    {
+      "name": "Role-Level Retention Risk Matrix",
+      "description": "A comprehensive table that correlates average job satisfaction, overtime prevalence, average promotion intervals, and actual attrition rate by job role to detect risk factors.",
+      "sql_query": "SELECT JobRole, COUNT(*) AS total_employees, ROUND(AVG(JobSatisfaction), 2) AS avg_job_satisfaction, ROUND(SUM(CASE WHEN OverTime = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS overtime_rate, ROUND(AVG(YearsSinceLastPromotion), 2) AS avg_years_since_promotion, ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate FROM data GROUP BY JobRole ORDER BY attrition_rate DESC",
+      "chart_type": "table",
+      "reasoning": "A detailed table enables HR teams to view multiple concurrent metrics (satisfaction, overtime, and promotion delays) alongside attrition rate to diagnose underlying issues."
     }
   ]
 }
