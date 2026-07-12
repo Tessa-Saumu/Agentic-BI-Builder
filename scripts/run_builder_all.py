@@ -1,44 +1,53 @@
 """
-Runs the PBIR Compiler (builder + serialiser) against datasets that have
-already been through the Profiler, Domain/KPI, SQL Executor, and Reflector
-nodes -- i.e. every dataset with a `*_profile.json` and a `*_kpis.json` in
-`data/profiles/` -- and writes a full .pbip project for each to
-`output/<dataset>/`.
+Runs the PBIR Compiler node against every dataset that has a `*_kpis.json`
+in `data/profiles/` (i.e. every dataset that's already been through the
+Profiler and Domain/KPI nodes), and writes a `.pbip` folder for each one
+under `output/<dataset>_report/`.
 
-hr and online_retail are compiled by default. chinook is skipped by default
-(its dataset is bundled mainly for reflector-testing, per the
-"[SABOTAGED for reflector testing: ...]" markers baked into its KPI
-descriptions) and is only compiled when --include-chinook is passed.
+query_results reconstruction:
+    This script does not re-run the SQL Executor. There is currently no
+    persisted `*_query_results.json` on disk.
+    Instead, for each KPI in `<dataset>_kpis.json`:
+      - if `<dataset>_reflection.json` exists and has a note for that KPI,
+        use the note's `fixed_sql_query` as the KPI's SQL (the Reflector
+        only writes a note when it found and fixed an issue, so a fixed
+        note is exactly a corrected, re-verified query);
+      - otherwise, use the KPI's original sql_query from *_kpis.json
+        unchanged (no issue was ever flagged for it).
+    Every resulting QueryResult is built with status="pass" -- this mirrors
+    exactly what the two uploaded reflection files show (every flagged KPI
+    in both chinook_reflection.json and online_retail_reflection.json has a
+    non-null fixed_sql_query; none were left un-fixable/dropped). If a
+    dataset's reflection file has a note with fixed_sql_query=null (a KPI
+    the Reflector could not fix), that KPI is skipped rather than passed
+    through -- see _kpi_specs_with_reflector_fixes() below.
 
-SQL source of truth per KPI:
-    Each KPISpec's own `sql_query` is the Domain/KPI node's original SQL.
-    If `data/profiles/<dataset>_reflection.json` exists AND contains a note
-    for that KPI's name, the note's `fixed_sql_query` is used instead --
-    that's the corrected SQL the Reflector settled on. Datasets with no
-    reflection file at all (e.g. hr, which had no issues to fix) simply use
-    every KPI's original sql_query unchanged. Every KPI that reaches the
-    builder is treated as a passing QueryResult: by this stage in the
-    pipeline (post-reflection) each KPI's SQL is the pipeline's final,
-    vetted query, whether or not it happened to need a fix along the way.
+    This is reconstruction from already-produced pipeline artifacts, not a
+    live re-execution -- it does not verify the fixed SQL actually runs
+    against the raw data again. If you need that guarantee, re-run
+    scripts/run_sql_reflector_all.py first and extend it to persist
+    query_results.json, then point this script at that file instead.
+
+Scope note (confirmed, minimal): CSV source only -- there is no
+SQLite support in this issue's PBIR compiler. chinook_profile.json's
+recorded source_path is a .sqlite file (data\\raw\\chinook.sqlite), which
+this compiler cannot read. Chinook is therefore opt-in and, when run,
+looks for data/raw/chinook.csv specifically (a CSV export of the same
+table), NOT the .sqlite file recorded in the profile.
 
 Usage:
-    python -m scripts.run_builder_all
-    python -m scripts.run_builder_all --include-chinook
-    python -m scripts.run_builder_all --datasets hr online_retail
+    python -m scripts.run_pbir_compiler_all
+    python -m scripts.run_pbir_compiler_all --chinook
+    python -m scripts.run_pbir_compiler_all --only hr,online_retail
 """
 import argparse
 import glob
 import json
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # python-dotenv not installed; fall back to whatever's already in the environment
 
 from agent.models import DataProfile, KPISpec, QueryResult  # noqa: E402
 from agent.state import AgentState  # noqa: E402
@@ -47,122 +56,192 @@ from pbir.compiler.serialiser import write_pbip  # noqa: E402
 
 PROFILES_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "profiles"))
 OUTPUT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "output"))
+RAW_DATA_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "raw"))
 
-# Datasets compiled unless --datasets overrides this list. chinook is
-# intentionally absent here -- it's added only via --include-chinook.
-DEFAULT_DATASETS = ["hr", "online_retail"]
-CHINOOK_DATASET = "chinook"
-
-
-def _load_kpi_specs(kpis_path: str) -> tuple[list[KPISpec], dict]:
-    with open(kpis_path) as f:
-        kpi_data = json.load(f)
-    kpi_specs = [KPISpec(**k) for k in kpi_data["kpi_specs"]]
-    return kpi_specs, kpi_data.get("domain_hypothesis", {})
+# chinook is opt-in: its profile's recorded source_path is a .sqlite file,
+# which this CSV-only compiler cannot read (mentor-confirmed scope: no
+# SQLite support in this issue). Running it requires a chinook.csv export
+# to already exist in data/raw/ -- see _resolve_csv_path().
+DEFAULT_EXCLUDED_DATASETS = {"chinook"}
 
 
-def _load_reflection_fixes(reflection_path: str) -> dict[str, str]:
+def _kpi_specs_with_reflector_fixes(dataset_name: str, kpi_data: dict) -> tuple[list[KPISpec], list[QueryResult]]:
     """
-    Returns {kpi_name: fixed_sql_query} for every note in the reflection
-    file, or {} if the file doesn't exist (a dataset with no flagged
-    issues, e.g. hr, has no *_reflection.json at all).
+    Builds (kpi_specs, query_results) for one dataset from its *_kpis.json
+    plus its *_reflection.json (if one exists), per the reconstruction
+    rules in this module's docstring.
+
+    Returns the kpi_specs list filtered down to only the KPIs that end up
+    with a usable SQL query (i.e. drops any KPI whose reflection note has
+    fixed_sql_query=None -- an issue the Reflector flagged but could not
+    fix), paired 1:1 with their QueryResult (all status="pass").
     """
-    if not os.path.exists(reflection_path):
-        return {}
-    with open(reflection_path) as f:
-        reflection_data = json.load(f)
-    return {note["kpi_name"]: note["fixed_sql_query"] for note in reflection_data.get("notes", [])}
+    reflection_path = os.path.join(PROFILES_DIR, f"{dataset_name}_reflection.json")
+    fixes_by_kpi_name: dict[str, str | None] = {}
+    if os.path.exists(reflection_path):
+        with open(reflection_path) as f:
+            reflection = json.load(f)
+        for note in reflection.get("notes", []):
+            fixes_by_kpi_name[note["kpi_name"]] = note.get("fixed_sql_query")
+
+    kpi_specs: list[KPISpec] = []
+    query_results: list[QueryResult] = []
+
+    for raw_kpi in kpi_data["kpi_specs"]:
+        kpi_name = raw_kpi["name"]
+        final_sql = raw_kpi["sql_query"]
+
+        if kpi_name in fixes_by_kpi_name:
+            fixed_sql = fixes_by_kpi_name[kpi_name]
+            if fixed_sql is None:
+                # Reflector flagged this KPI but could not fix it (per
+                # agent/models.py's own ReflectionNote docstring: "such KPIs
+                # are dropped without a retry") -- skip it entirely rather
+                # than pass through SQL known to be broken.
+                continue
+            final_sql = fixed_sql
+
+        kpi_spec = KPISpec(**{**raw_kpi, "sql_query": final_sql})
+        kpi_specs.append(kpi_spec)
+        query_results.append(
+            QueryResult(
+                kpi_name=kpi_name,
+                sql_query=final_sql,
+                status="pass",
+                row_count=0,
+                columns=[],
+                result_rows=[],
+            )
+        )
+
+    return kpi_specs, query_results
 
 
-def _build_query_results(kpi_specs: list[KPISpec], fixes_by_kpi_name: dict[str, str]) -> list[QueryResult]:
+def _resolve_csv_path(profile: DataProfile, dataset_name: str) -> str | None:
     """
-    One QueryResult per KPISpec, using the Reflector's fixed_sql_query in
-    place of the original sql_query wherever a fix was recorded for that
-    KPI's name, and the KPISpec's own sql_query otherwise. Every result is
-    marked "pass" -- this is the pipeline's final SQL for each KPI by the
-    time it reaches the builder, whether it needed a fix or not.
+    Finds this dataset's CSV file. Tries profile.source_path first (only
+    if it's actually a .csv path -- this compiler is CSV-only, so a
+    .sqlite/.db source_path is never used even if it resolves on disk),
+    then falls back to data/raw/<dataset_name>.csv.
     """
-    query_results = []
-    for kpi in kpi_specs:
-        sql_query = fixes_by_kpi_name.get(kpi.name, kpi.sql_query)
-        query_results.append(QueryResult(kpi_name=kpi.name, sql_query=sql_query, status="pass"))
-    return query_results
+    candidates = []
+    if profile.source_path.lower().endswith(".csv"):
+        candidates.append(profile.source_path)
+        candidates.append(profile.source_path.replace("\\", os.sep).replace("/", os.sep))
+
+    project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+        alt = os.path.normpath(os.path.join(project_root, candidate))
+        if os.path.exists(alt):
+            return alt
+
+    fallback = os.path.join(RAW_DATA_DIR, f"{dataset_name}.csv")
+    if os.path.exists(fallback):
+        return fallback
+
+    return None
 
 
-def _process_dataset(dataset_name: str, profile_path: str, kpis_path: str, reflection_path: str) -> None:
+def _process_dataset(dataset_name: str, profile_path: str, kpis_path: str) -> None:
     print(f"\n--- {dataset_name} ---")
 
     with open(profile_path) as f:
         profile = DataProfile(**json.load(f))
 
-    kpi_specs, _domain_hypothesis = _load_kpi_specs(kpis_path)
-    fixes_by_kpi_name = _load_reflection_fixes(reflection_path)
-    n_fixed = sum(1 for kpi in kpi_specs if kpi.name in fixes_by_kpi_name)
-    if os.path.exists(reflection_path):
-        print(f"Reflection: {n_fixed}/{len(kpi_specs)} KPI(s) using a reflector-fixed query.")
-    else:
-        print(f"Reflection: no {os.path.basename(reflection_path)} found; using original SQL for all KPIs.")
+    with open(kpis_path) as f:
+        kpi_data = json.load(f)
 
-    query_results = _build_query_results(kpi_specs, fixes_by_kpi_name)
+    csv_path = _resolve_csv_path(profile, dataset_name)
+    if csv_path is None:
+        print(f"SKIPPED '{dataset_name}': no CSV file found.")
+        print(f"  This compiler is CSV-only (no SQLite support in this issue's scope).")
+        print(f"  Expected a .csv source_path in the profile, or {RAW_DATA_DIR}/{dataset_name}.csv")
+        return
 
-    state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
-    state = run_pbir_compiler(state)
+    # Point the profile at the resolved CSV path (and clear source_table,
+    # which only applies to a SQLite table reference) so the compiler's M
+    # query points at a real, readable file rather than whatever path was
+    # originally recorded (e.g. chinook_profile.json's .sqlite path).
+    profile = profile.model_copy(update={"source_path": csv_path, "source_table": None})
 
-    if state.errors:
-        print(f"BUILDER FAILED for '{dataset_name}':")
-        for err in state.errors:
+    kpi_specs, query_results = _kpi_specs_with_reflector_fixes(dataset_name, kpi_data)
+    n_dropped = len(kpi_data["kpi_specs"]) - len(kpi_specs)
+    if n_dropped:
+        print(f"  {n_dropped} KPI(s) dropped: Reflector flagged an issue with no fix available.")
+
+    state = AgentState(
+        input_path=csv_path,
+        output_path=os.path.join(OUTPUT_DIR, f"{dataset_name}_report"),
+        data_profile=profile,
+        kpi_specs=kpi_specs,
+        query_results=query_results,
+    )
+
+    result_state = run_pbir_compiler(state)
+    if result_state.errors:
+        print(f"PBIR COMPILER FAILED for '{dataset_name}':")
+        for err in result_state.errors:
             print(f"  - {err}")
         return
 
-    project = state.pbir_project
-    print(f"Built {len(project.pages)} page(s), {len(project.data_table.measures)} measure(s).")
+    project = result_state.pbir_project
+    n_pages = len(project.pages)
+    n_visuals = sum(len(p.visuals) for p in project.pages)
+    print(f"Built: {n_pages} page(s), {n_visuals} visual(s), {len(project.data_table.measures)} measure(s).")
 
-    dataset_output_dir = os.path.join(OUTPUT_DIR, dataset_name)
-    write_pbip(project, dataset_output_dir)
-    print(f"Wrote .pbip project to {dataset_output_dir}")
+    out_dir = Path(state.output_path)
+    write_pbip(project, out_dir)
+    print(f"Wrote {out_dir / (project.report_name + '.pbip')}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--datasets",
-        nargs="+",
-        default=None,
-        help=f"Dataset names to compile (default: {DEFAULT_DATASETS}). Overrides --include-chinook.",
+        "--chinook",
+        action="store_true",
+        help="Include chinook (excluded by default -- requires data/raw/chinook.csv; "
+             "this compiler cannot read chinook_profile.json's recorded .sqlite path).",
     )
     parser.add_argument(
-        "--include-chinook",
-        action="store_true",
-        help=f"Also compile the '{CHINOOK_DATASET}' dataset (skipped by default; "
-        f"its KPIs are deliberately sabotaged for reflector testing).",
+        "--only",
+        type=str,
+        default=None,
+        help="Comma-separated dataset names to run, overriding the default set entirely "
+             "(e.g. --only hr,online_retail). Overrides --chinook too if chinook is in the list.",
     )
     args = parser.parse_args()
 
-    if args.datasets is not None:
-        datasets = list(args.datasets)
+    kpis_paths = sorted(glob.glob(os.path.join(PROFILES_DIR, "*_kpis.json")))
+    if not kpis_paths:
+        print(f"No *_kpis.json files found in {PROFILES_DIR}. Run scripts/run_domain_kpi_all.py first.")
+        return
+
+    if args.only:
+        allowed = {name.strip() for name in args.only.split(",") if name.strip()}
     else:
-        datasets = list(DEFAULT_DATASETS)
-        if args.include_chinook:
-            datasets.append(CHINOOK_DATASET)
+        allowed = None  # means "all datasets found, minus DEFAULT_EXCLUDED_DATASETS unless --chinook"
 
-    print(f"Datasets to compile: {datasets}")
-
-    for dataset_name in datasets:
+    for kpis_path in kpis_paths:
+        dataset_name = os.path.basename(kpis_path).removesuffix("_kpis.json")
         profile_path = os.path.join(PROFILES_DIR, f"{dataset_name}_profile.json")
-        kpis_path = os.path.join(PROFILES_DIR, f"{dataset_name}_kpis.json")
-        reflection_path = os.path.join(PROFILES_DIR, f"{dataset_name}_reflection.json")
+
+        if allowed is not None:
+            if dataset_name not in allowed:
+                continue
+        else:
+            if dataset_name in DEFAULT_EXCLUDED_DATASETS and not args.chinook:
+                print(f"\n--- {dataset_name} ---")
+                print(f"SKIPPED: {dataset_name} is excluded by default (pass --chinook to include it).")
+                continue
 
         if not os.path.exists(profile_path):
             print(f"\n--- {dataset_name} ---")
-            print(f"SKIPPED: no {dataset_name}_profile.json found in {PROFILES_DIR}")
-            continue
-        if not os.path.exists(kpis_path):
-            print(f"\n--- {dataset_name} ---")
-            print(f"SKIPPED: no {dataset_name}_kpis.json found in {PROFILES_DIR}. "
-                  f"Run scripts/run_domain_kpi_all.py first.")
+            print(f"SKIPPED: no matching {dataset_name}_profile.json found in {PROFILES_DIR}")
             continue
 
-        _process_dataset(dataset_name, profile_path, kpis_path, reflection_path)
+        _process_dataset(dataset_name, profile_path, kpis_path)
 
 
 if __name__ == "__main__":
