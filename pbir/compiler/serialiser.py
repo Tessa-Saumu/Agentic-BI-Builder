@@ -264,6 +264,32 @@ _EXCLUDED_FILES_NOTE = (
 # =====================================================================
 
 
+def _m_escape_text_literal(value: str) -> str:
+    r"""
+    Escapes a string for embedding inside an M double-quoted text literal.
+
+    BUG FIX (was the cause of "some tables have incomplete or no data"):
+    M's *only* string-escape mechanism is doubling the quote character
+    ("" -> a literal "). Unlike Python/C/JSON, backslash has NO special
+    meaning inside an M text literal -- it is always a literal character.
+    Confirmed directly against pbir_reference.md's own reverse-engineered
+    File.Contents(...) call, which embeds a raw Windows path with single,
+    un-doubled backslashes (e.g. "C:\Users\ingex\...\Health_Dirty.xlsx").
+
+    The previous version of this function did
+    `csv_path.replace("\\", "\\\\")`, which doubled every backslash in
+    the absolute CSV path before it was embedded in the M script. M does not
+    collapse "\\\\" back down to a single backslash the way Python/JSON
+    do, so Csv.Document(File.Contents(...)) ended up trying to open a path
+    that literally contained doubled separators and therefore didn't match
+    any file on disk -- Power BI Desktop then opens the report with that
+    table's partition failing to resolve, which is exactly the "some tables
+    have incomplete or no data" dialog. The fix is to leave backslashes
+    alone and only double literal quote characters.
+    """
+    return value.replace('"', '""')
+
+
 def _build_m_partition_source(csv_path: str, columns: list[Column]) -> str:
     """
     Returns the full M `let...in` script as a string, e.g.:
@@ -276,16 +302,16 @@ def _build_m_partition_source(csv_path: str, columns: list[Column]) -> str:
             #"Changed Type"
     """
     n_cols = len(columns)
-    escaped_path = csv_path.replace("\\", "\\\\").replace('"', '\\"')
+    m_path = _m_escape_text_literal(csv_path)
 
     type_pairs = ", ".join(
-        f'{{"{col.source_column}", {dax_type_to_m_type(col.data_type)}}}'
+        f'{{"{_m_escape_text_literal(col.source_column)}", {dax_type_to_m_type(col.data_type)}}}'
         for col in columns
     )
 
     lines = [
         "let",
-        f'    Source = Csv.Document(File.Contents("{escaped_path}"), '
+        f'    Source = Csv.Document(File.Contents("{m_path}"), '
         f'[Delimiter=",", Columns={n_cols}, Encoding=65001, QuoteStyle=QuoteStyle.None]),',
         '    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),',
         f'    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {{{type_pairs}}})',
