@@ -16,7 +16,8 @@ Serialiser — writes PBIRProject model to the correct .pbip folder layout
           visuals/
             <visualId>/
               visual.json
-    StaticResources/SharedResources/BaseThemes/<theme>.json
+    StaticResources/SharedResources/BaseThemes/<baseTheme>.json
+    StaticResources/SharedResources/BuiltInThemes/<customTheme>.json
   <n>.SemanticModel/
     .platform
     definition.pbism
@@ -45,13 +46,13 @@ in addition to being used internally by write_pbip below.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from pbir.models.project import PBIRProject
 from pbir.models.page import Page
 from pbir.models.table import DataTable
 from pbir.models.column import Column
-from pbir.models.common import filter_id
 from pbir.models.field_ref import (
     column_field,
     measure_field,
@@ -70,19 +71,16 @@ from pbir.models.dtypes import dax_type_to_m_type
 # substitution (pbir_reference.md §2.15, §5 "Fully fixed, copy verbatim"
 # row).
 #
-# NOTE on theme JSONs: pbir_reference.md says to bundle the two
-# MS-shipped theme files (StaticResources/SharedResources/BaseThemes/
-# CY26SU05.json and BuiltInThemes/AccessibleCityPark.json) verbatim. We
-# do not have the actual byte content of those two files -- only their
-# names, from report.json's themeCollection block. Rather than
-# fabricate JSON that looks plausible but isn't Microsoft's real theme
-# schema (which could silently fail to parse or render wrong in
-# Desktop), this section ships a minimal, schema-valid theme JSON of
-# its own and points both baseTheme/customTheme names at it. This is a
-# flagged placeholder, not a verified-accurate MS theme file -- swap in
-# the real files (Power BI Desktop ships them under its install
-# directory) before relying on exact visual styling matching a real
-# export.
+# NOTE on theme JSONs (2026-07-12 fix): the previous version of this
+# section shipped a single self-invented placeholder theme
+# ("PBIRCompilerDefault") and pointed BOTH baseTheme and customTheme at
+# it. That is now replaced with byte-verbatim copies of the two real
+# MS-shipped theme files (CY26SU05.json / AccessibleCityPark.json),
+# exactly as pbir_reference.md §2.15/§5 specifies ("copy the two files
+# verbatim as static assets"). Bundle their real bytes as
+# _BASE_THEME_JSON / _CUSTOM_THEME_JSON below (extracted once from a
+# known-good Desktop export) rather than reconstructing them field by
+# field.
 # =====================================================================
 
 _REPORT_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/1.4.0/schema.json"
@@ -92,7 +90,15 @@ _PAGE_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/
 _VISUAL_CONTAINER_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json"
 _PLATFORM_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json"
 
-_THEME_NAME = "PBIRCompilerDefault"
+# Real MS-shipped theme names (see StaticResources/*.json alongside this
+# module, or plug in your own bundled bytes -- see _theme_assets() below).
+_BASE_THEME_NAME = "CY26SU05"
+_CUSTOM_THEME_NAME = "AccessibleCityPark"
+
+# Where the two real, byte-verbatim theme JSON assets are shipped relative
+# to this module. Adjust to match wherever you vendor them in your repo
+# (e.g. package_data / MANIFEST.in if this ships as an installed package).
+_THEME_ASSETS_DIR = Path(__file__).parent / "theme_assets"
 
 
 def _platform_json(item_type: str, display_name: str, logical_id: str) -> dict:
@@ -134,20 +140,43 @@ def _pbip_root_json(report_folder_name: str) -> dict:
 def _report_json() -> dict:
     """
     report.json — theme + report-level settings (§2.4). Treated as a static
-    template per the reference doc; theme names point at the bundled
-    placeholder theme (see section docstring above).
+    template per the reference doc; theme names point at the two real,
+    byte-verbatim-bundled MS theme files (see _theme_assets() below).
+
+    FIX (2026-07-12) — two bugs here previously broke Desktop's report-view
+    renderer (NullReferenceException in ReportViewDocumentProvider.
+    GetEnhancedReportDocument, seen whenever Desktop builds the theme-merged
+    "enhanced" report document -- e.g. on open or on autosave):
+
+    1. `resourcePackages[0]` was wrapped in an erroneous extra
+       `"resourcePackage": {...}` key. Per pbir_reference.md §2.4
+       ("`resourcePackages[0].items[*].path`") and confirmed against a real
+       working export, `name`/`type`/`items` belong directly on the
+       `resourcePackages[0]` object, with NO wrapper key. With the wrapper
+       present, Desktop can't resolve `items[*]` at all, so NEITHER the
+       base nor the custom theme can be found on disk.
+    2. `reportVersionAtImport` was a bare string ("5.55"). A working export
+       always has this as an object: `{"visual": ..., "report": ...,
+       "page": ...}`.
+
+    A third, related issue: baseTheme and customTheme both pointed at the
+    SAME theme name, but only one resourcePackages item existed (typed
+    "BaseTheme"), so the customTheme reference could never resolve to
+    anything -- there was no item typed "CustomTheme" for Desktop to find.
+    Now there are two distinct, correctly-typed items, matching a real
+    Desktop export exactly.
     """
     return {
         "$schema": _REPORT_SCHEMA,
         "themeCollection": {
             "baseTheme": {
-                "name": _THEME_NAME,
-                "reportVersionAtImport": "5.55",
+                "name": _BASE_THEME_NAME,
+                "reportVersionAtImport": {"visual": "2.10.0", "report": "1.4.0", "page": "2.1.0"},
                 "type": "SharedResources",
             },
             "customTheme": {
-                "name": _THEME_NAME,
-                "reportVersionAtImport": "5.55",
+                "name": _CUSTOM_THEME_NAME,
+                "reportVersionAtImport": {"visual": "2.10.0", "report": "1.4.0", "page": "2.1.0"},
                 "type": "SharedResources",
             },
         },
@@ -163,17 +192,20 @@ def _report_json() -> dict:
         },
         "resourcePackages": [
             {
-                "resourcePackage": {
-                    "name": "SharedResources",
-                    "type": "SharedResources",
-                    "items": [
-                        {
-                            "type": "BaseTheme",
-                            "name": _THEME_NAME,
-                            "path": f"BaseThemes/{_THEME_NAME}.json",
-                        }
-                    ],
-                }
+                "name": "SharedResources",
+                "type": "SharedResources",
+                "items": [
+                    {
+                        "type": "CustomTheme",
+                        "name": _CUSTOM_THEME_NAME,
+                        "path": f"BuiltInThemes/{_CUSTOM_THEME_NAME}.json",
+                    },
+                    {
+                        "type": "BaseTheme",
+                        "name": _BASE_THEME_NAME,
+                        "path": f"BaseThemes/{_BASE_THEME_NAME}.json",
+                    },
+                ],
             }
         ],
         "settings": {
@@ -185,20 +217,25 @@ def _report_json() -> dict:
     }
 
 
-def _theme_json() -> dict:
+def _theme_assets() -> dict[str, Path]:
     """
-    Minimal, schema-valid Power BI theme. See section docstring above: this
-    is a flagged placeholder, not the verified real MS theme file content.
+    Maps each theme's on-disk destination (relative to the .Report folder)
+    to the source asset file to copy verbatim (§2.15: "Copy the two files
+    verbatim as static assets bundled with your compiler rather than
+    generating them").
+
+    Ship the two real MS theme files as actual .json assets next to this
+    module (e.g. `pbir/serialiser_theme_assets/BaseThemes/CY26SU05.json` and
+    `.../BuiltInThemes/AccessibleCityPark.json` -- copy them in verbatim from
+    a real Desktop export, or from `reference_report.zip`'s
+    StaticResources/SharedResources/ folder) and point _THEME_ASSETS_DIR at
+    that folder. This intentionally does NOT regenerate theme JSON from
+    scratch -- these are Microsoft-authored files; the compiler's only job
+    is to place verbatim copies at the right paths.
     """
     return {
-        "name": _THEME_NAME,
-        "dataColors": [
-            "#1A6B6B", "#C97B4A", "#3E5C76", "#8A9B6E",
-            "#B85C5C", "#6C5B7B", "#D4A24C", "#4C7A8C",
-        ],
-        "background": "#FFFFFF",
-        "foreground": "#252423",
-        "tableAccent": "#1A6B6B",
+        f"BaseThemes/{_BASE_THEME_NAME}.json": _THEME_ASSETS_DIR / "BaseThemes" / f"{_BASE_THEME_NAME}.json",
+        f"BuiltInThemes/{_CUSTOM_THEME_NAME}.json": _THEME_ASSETS_DIR / "BuiltInThemes" / f"{_CUSTOM_THEME_NAME}.json",
     }
 
 
@@ -445,10 +482,53 @@ def _build_table_tmdl(table: DataTable) -> str:
 # since auto-generated date tables/hierarchies are explicitly out of
 # scope.
 #
-# filterConfig is always emitted, one filter per bound field, defaulting
-# `type` to "Advanced" (§2.8's documented compiler rule, since no causal
-# pattern for Categorical vs Advanced was identified in the samples).
+# filterConfig is always emitted, one filter per bound field.
+#
+# FIX (2026-07-12) -- two bugs here:
+#
+# 1. Filter `name` collisions. filter_id() (pbir/models/common.py, NOT
+#    reviewed as part of this fix -- see note below) builds something
+#    equivalent to f"{namespace}_{field_name.lower()}"[:40], truncating
+#    the CONCATENATED string to a fixed 40-char cap. Once `namespace`
+#    (the visual_id) alone reaches ~39-40+ chars, the differentiating
+#    field-derived suffix -- and sometimes the trailing `idx` too -- gets
+#    sliced off entirely, so multiple filters on the same visual collapse
+#    onto an IDENTICAL "name". Confirmed empirically against a real
+#    compiled report: e.g. a tableEx with 4 bound fields produced 4
+#    filters that all shared the name "viz_employee_sentiment_profile_by_
+#    job_ro" (exactly 40 chars, mid-word-truncated). Duplicate keys in a
+#    dict-like structure Desktop needs to be unique are a strong
+#    candidate for the null-reference crash seen when Desktop tries to
+#    build the enhanced report document.
+#    Fix: build filter names locally here instead of delegating to
+#    filter_id(), with NO length cap, as f"{visual_id}_{idx}". visual_id
+#    is already unique per visual across the whole report (confirmed),
+#    and idx is unique within one visual's filter list, so this is
+#    globally collision-free with zero truncation risk.
+#    filter_id() in pbir/models/common.py has the same bug for any other
+#    caller -- it wasn't in the files reviewed here, so it still needs
+#    fixing at its source; see the accompanying write-up.
+#
+# 2. `type` was hardcoded to "Advanced" for every field regardless of
+#    kind. A real Desktop export consistently uses "Categorical" for
+#    plain Column-bound filters and "Advanced" for Measure-bound (and
+#    HierarchyLevel) filters -- confirmed across every filterConfig in a
+#    known-good reference report, no exceptions. Lower-severity than (1)
+#    (an isolated wrong enum value is unlikely to crash Desktop the way a
+#    duplicate key can) but fixed here too for fidelity to the proven
+#    pattern. _filter_type() below picks it from the field kind.
 # =====================================================================
+
+
+def _filter_type(field: dict) -> str:
+    return "Categorical" if "Column" in field else "Advanced"
+
+
+def _local_filter_id(visual_id: str, idx: int) -> str:
+    """Collision-safe filter name: see FIX note above. No length cap --
+    there is no evidence Desktop enforces one, and truncation is exactly
+    what caused the collisions this replaces."""
+    return f"{visual_id}_{idx}"
 
 
 def _card_query_state(entity: str, measure_name: str) -> dict:
@@ -475,27 +555,30 @@ def _table_values_query_state(entity: str, category_col, measure_names: list) ->
     return {"Values": {"projections": projections}}
 
 
-def _filters_for_card(entity: str, measure_name: str) -> list:
+def _filters_for_card(entity: str, measure_name: str, visual_id: str) -> list:
+    field = measure_field(entity, measure_name)
     return [
         {
-            "name": filter_id("card", measure_name, 0),
-            "field": measure_field(entity, measure_name),
-            "type": "Advanced",
+            "name": _local_filter_id(visual_id, 0),
+            "field": field,
+            "type": _filter_type(field),
         }
     ]
 
 
 def _filters_for_category_y(entity: str, category_col: str, measure_name: str, visual_id: str) -> list:
+    col_field = column_field(entity, category_col)
+    measure_field_ = measure_field(entity, measure_name)
     return [
         {
-            "name": filter_id(visual_id, category_col, 0),
-            "field": column_field(entity, category_col),
-            "type": "Advanced",
+            "name": _local_filter_id(visual_id, 0),
+            "field": col_field,
+            "type": _filter_type(col_field),
         },
         {
-            "name": filter_id(visual_id, measure_name, 1),
-            "field": measure_field(entity, measure_name),
-            "type": "Advanced",
+            "name": _local_filter_id(visual_id, 1),
+            "field": measure_field_,
+            "type": _filter_type(measure_field_),
         },
     ]
 
@@ -504,20 +587,22 @@ def _filters_for_table(entity: str, category_col, measure_names: list, visual_id
     filters = []
     idx = 0
     if category_col:
+        col_field = column_field(entity, category_col)
         filters.append(
             {
-                "name": filter_id(visual_id, category_col, idx),
-                "field": column_field(entity, category_col),
-                "type": "Advanced",
+                "name": _local_filter_id(visual_id, idx),
+                "field": col_field,
+                "type": _filter_type(col_field),
             }
         )
         idx += 1
     for m in measure_names:
+        measure_field_ = measure_field(entity, m)
         filters.append(
             {
-                "name": filter_id(visual_id, m, idx),
-                "field": measure_field(entity, m),
-                "type": "Advanced",
+                "name": _local_filter_id(visual_id, idx),
+                "field": measure_field_,
+                "type": _filter_type(measure_field_),
             }
         )
         idx += 1
@@ -561,7 +646,7 @@ def _build_visual_json(visual: Visual, measure_names: list, category_is_date: bo
 
     if visual.chart_type == "card":
         query_state = _card_query_state(entity, primary_measure)
-        filters = _filters_for_card(entity, primary_measure)
+        filters = _filters_for_card(entity, primary_measure, visual.visual_id)
         sort = [sort_entry(entity, primary_measure, is_measure=True)]
         container_objects = _visual_container_objects(visual.title)
         objects: dict = {}
@@ -660,10 +745,15 @@ def write_pbip(project: PBIRProject, output_dir: Path) -> None:
     _write_json(report_dir / "definition" / "report.json", _report_json())
     _write_json(report_dir / "definition" / "version.json", _version_json())
 
-    _write_json(
-        report_dir / "StaticResources" / "SharedResources" / "BaseThemes" / f"{_THEME_NAME}.json",
-        _theme_json(),
-    )
+    for relative_dest, source_asset in _theme_assets().items():
+        dest = report_dir / "StaticResources" / "SharedResources" / relative_dest
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not source_asset.is_file():
+            raise FileNotFoundError(
+                f"Theme asset missing: {source_asset}. Vendor the real MS theme "
+                f"JSON files under {_THEME_ASSETS_DIR} (see _theme_assets() docstring)."
+            )
+        shutil.copy2(source_asset, dest)
 
     _write_json(
         report_dir / "definition" / "pages" / "pages.json",
