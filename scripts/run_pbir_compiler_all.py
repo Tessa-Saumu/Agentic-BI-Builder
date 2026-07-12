@@ -119,27 +119,38 @@ def _kpi_specs_with_reflector_fixes(dataset_name: str, kpi_data: dict) -> tuple[
 
 def _resolve_csv_path(profile: DataProfile, dataset_name: str) -> str | None:
     """
-    Finds this dataset's CSV file. Tries profile.source_path first (only
-    if it's actually a .csv path -- this compiler is CSV-only, so a
-    .sqlite/.db source_path is never used even if it resolves on disk),
-    then falls back to data/raw/<dataset_name>.csv.
+    Finds this dataset's CSV file and returns an ABSOLUTE path, always.
+
+    This matters: Power Query's File.Contents(...) has no concept of "relative
+    to the .pbip file" or "relative to a project root" -- a bare relative
+    string like "data/raw/hr.csv" gets evaluated (if at all) relative to
+    whatever working directory Power BI Desktop happens to be using, which
+    is not predictable and is NOT the same thing Python's os.path.exists()
+    just resolved it against. A path that "exists" from this script's point
+    of view because it's relative to the terminal's CWD can still fail
+    silently inside Power BI Desktop (symptom: "some tables have incomplete
+    or no data" / "failed to load the report"). So every candidate below is
+    converted to an absolute path with os.path.abspath() before being
+    returned or checked -- never a raw relative string.
+
+    Tries profile.source_path first (only if it's actually a .csv path --
+    this compiler is CSV-only, so a .sqlite/.db source_path is never used
+    even if it resolves on disk), then falls back to data/raw/<dataset_name>.csv.
     """
+    project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+
     candidates = []
     if profile.source_path.lower().endswith(".csv"):
-        candidates.append(profile.source_path)
-        candidates.append(profile.source_path.replace("\\", os.sep).replace("/", os.sep))
+        raw = profile.source_path.replace("\\", os.sep).replace("/", os.sep)
+        candidates.append(raw)
+        candidates.append(os.path.join(project_root, raw))
 
-    project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+    candidates.append(os.path.join(RAW_DATA_DIR, f"{dataset_name}.csv"))
+
     for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-        alt = os.path.normpath(os.path.join(project_root, candidate))
-        if os.path.exists(alt):
-            return alt
-
-    fallback = os.path.join(RAW_DATA_DIR, f"{dataset_name}.csv")
-    if os.path.exists(fallback):
-        return fallback
+        abs_candidate = os.path.abspath(candidate)
+        if os.path.exists(abs_candidate):
+            return abs_candidate
 
     return None
 
