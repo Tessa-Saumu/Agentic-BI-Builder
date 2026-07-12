@@ -83,7 +83,7 @@ from pbir.models.dtypes import dax_type_to_m_type
 # field.
 # =====================================================================
 
-_REPORT_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/1.4.0/schema.json"
+_REPORT_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.3.0/schema.json"
 _VERSION_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/versionMetadata/1.0.0/schema.json"
 _PAGES_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/pagesMetadata/1.1.0/schema.json"
 _PAGE_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json"
@@ -143,40 +143,46 @@ def _report_json() -> dict:
     template per the reference doc; theme names point at the two real,
     byte-verbatim-bundled MS theme files (see _theme_assets() below).
 
-    FIX (2026-07-12) — two bugs here previously broke Desktop's report-view
-    renderer (NullReferenceException in ReportViewDocumentProvider.
-    GetEnhancedReportDocument, seen whenever Desktop builds the theme-merged
-    "enhanced" report document -- e.g. on open or on autosave):
+    FIX (2026-07-12, round 1) — resourcePackages nesting + reportVersionAtImport
+    shape (see prior comment in git history / write-up). Fixed a
+    NullReferenceException in Desktop's report-view renderer.
 
-    1. `resourcePackages[0]` was wrapped in an erroneous extra
-       `"resourcePackage": {...}` key. Per pbir_reference.md §2.4
-       ("`resourcePackages[0].items[*].path`") and confirmed against a real
-       working export, `name`/`type`/`items` belong directly on the
-       `resourcePackages[0]` object, with NO wrapper key. With the wrapper
-       present, Desktop can't resolve `items[*]` at all, so NEITHER the
-       base nor the custom theme can be found on disk.
-    2. `reportVersionAtImport` was a bare string ("5.55"). A working export
-       always has this as an object: `{"visual": ..., "report": ...,
-       "page": ...}`.
-
-    A third, related issue: baseTheme and customTheme both pointed at the
-    SAME theme name, but only one resourcePackages item existed (typed
-    "BaseTheme"), so the customTheme reference could never resolve to
-    anything -- there was no item typed "CustomTheme" for Desktop to find.
-    Now there are two distinct, correctly-typed items, matching a real
-    Desktop export exactly.
+    FIX (2026-07-12, round 2) — the round-1 fix left "$schema" pointed at
+    report/1.4.0 while giving reportVersionAtImport the object shape that
+    belongs to LATER schema versions. Confirmed by fetching Microsoft's
+    actual report/3.1.0/schema.json (developer.microsoft.com/json-schemas/
+    fabric/item/report/definition/report/3.1.0/schema.json):
+      - ThemeVersion (reportVersionAtImport) is an object with
+        visual/report/page, each pattern ^[0-9]+\\.[0-9]+\\.[0-9]+$ -- so an
+        object is only valid when $schema matches a version that defines it
+        that way. Mismatched $schema vs. field shape is exactly what threw
+        "was not provided as the correct type".
+      - Root-level "required" is only ["$schema", "themeCollection"], with
+        additionalProperties: false -- "layoutOptimization" is NOT a
+        recognized property at this schema version at all (it belongs to
+        older schemas like 1.0.0, which uses the string-shaped
+        reportVersionAtImport instead). Do NOT add it here.
+      - "settings" (ExplorationSettings) has NO "useNewFilterPaneExperience"
+        property (additionalProperties: false rejects it), and
+        "exportDataMode" is a const enum of exactly "AllowSummarized" |
+        "AllowSummarizedAndUnderlying" | "None" -- "Underlying" is not a
+        member.
+    Fix: pin $schema to 3.3.0 (matching a real, proven Desktop export) and
+    make every field conform to that version, copying the proven report's
+    exact reportVersionAtImport/settings values rather than inventing new
+    ones.
     """
     return {
         "$schema": _REPORT_SCHEMA,
         "themeCollection": {
             "baseTheme": {
                 "name": _BASE_THEME_NAME,
-                "reportVersionAtImport": {"visual": "2.10.0", "report": "1.4.0", "page": "2.1.0"},
+                "reportVersionAtImport": {"visual": "2.9.0", "report": "3.3.0", "page": "2.3.1"},
                 "type": "SharedResources",
             },
             "customTheme": {
                 "name": _CUSTOM_THEME_NAME,
-                "reportVersionAtImport": {"visual": "2.10.0", "report": "1.4.0", "page": "2.1.0"},
+                "reportVersionAtImport": {"visual": "2.10.0", "report": "3.4.0", "page": "2.3.1"},
                 "type": "SharedResources",
             },
         },
@@ -209,10 +215,12 @@ def _report_json() -> dict:
             }
         ],
         "settings": {
-            "useNewFilterPaneExperience": True,
-            "allowChangeFilterTypes": True,
             "useStylableVisualContainerHeader": True,
-            "exportDataMode": "Underlying",
+            "exportDataMode": "AllowSummarized",
+            "defaultDrillFilterOtherVisuals": True,
+            "allowChangeFilterTypes": True,
+            "useEnhancedTooltips": True,
+            "useDefaultAggregateDisplayName": True,
         },
     }
 
@@ -524,11 +532,21 @@ def _filter_type(field: dict) -> str:
     return "Categorical" if "Column" in field else "Advanced"
 
 
-def _local_filter_id(visual_id: str, idx: int) -> str:
-    """Collision-safe filter name: see FIX note above. No length cap --
-    there is no evidence Desktop enforces one, and truncation is exactly
-    what caused the collisions this replaces."""
-    return f"{visual_id}_{idx}"
+def _local_filter_id(visual_id: str, idx: int, max_len: int = 50) -> str:
+    """Collision-safe filter name: see FIX note above.
+
+    FIX (2026-07-12, round 2): round 1 assumed no length limit existed and
+    used f"{visual_id}_{idx}" uncapped. Desktop's validator confirmed a
+    real cap: "Filter names cannot be empty and must be between 1 and 50
+    characters" -- caught on the one visual whose name is 49 chars
+    (viz_average_monthly_income_by_department_barchart + "_0" = 51).
+    Reserve space for the "_<idx>" suffix FIRST, then truncate the base to
+    fit, so the differentiator is never what gets cut (that was the
+    original truncation bug) while the real 50-char ceiling is respected.
+    """
+    suffix = f"_{idx}"
+    base = visual_id[: max_len - len(suffix)]
+    return f"{base}{suffix}"
 
 
 def _card_query_state(entity: str, measure_name: str) -> dict:
