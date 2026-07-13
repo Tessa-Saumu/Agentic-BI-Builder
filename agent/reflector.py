@@ -144,14 +144,22 @@ def _call_reflection_llm(system_prompt: str, user_content: str, provider: str) -
     return call_llm(system_prompt, user_content, provider, response_model=ReflectionResponse)
 
 
-def _log_reflection(dataset_name: str, notes: list[ReflectionNote], output_dir: str = "data/profiles") -> str | None:
+def _log_reflection(
+    dataset_name: str,
+    notes: list[ReflectionNote],
+    reviewed_kpi_count: int,
+    output_dir: str = "data/profiles",
+) -> str | None:
     """
     Log reflection activity to console always, and to a JSON file when there
     are any notes to report. Returns the file path written, or None if no
     notes were generated (nothing to log to a file).
     """
     if not notes:
-        print(f"[Reflector] {dataset_name}: no issues found across {len(notes)} KPIs — all clear.")
+        print(
+            f"[Reflector] {dataset_name}: no issues found across "
+            f"{reviewed_kpi_count} KPIs — all clear."
+        )
         return None
 
     print(f"[Reflector] {dataset_name}: {len(notes)} issue(s) found:")
@@ -200,6 +208,23 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
         state.errors.append("run_reflector: state.query_results is empty; run the SQL Executor node first.")
         return state
 
+    kpi_names = [kpi.name for kpi in state.kpi_specs]
+    normalized_kpi_names = [name.strip().casefold() for name in kpi_names]
+    if len(normalized_kpi_names) != len(set(normalized_kpi_names)):
+        state.errors.append(
+            "run_reflector: KPI names must be unique because names link "
+            "KPISpec, QueryResult, and ReflectionNote objects."
+        )
+        return state
+
+    result_names = [result.kpi_name for result in state.query_results]
+    normalized_result_names = [name.strip().casefold() for name in result_names]
+    if len(normalized_result_names) != len(set(normalized_result_names)):
+        state.errors.append(
+            "run_reflector: QueryResult.kpi_name values must be unique."
+        )
+        return state
+
     provider = os.environ.get("LLM_PROVIDER", "gemini").strip().lower()
 
     print(f"[Reflector] Provider: {provider}. Building reflection prompt for {len(state.kpi_specs)} KPIs...")
@@ -212,8 +237,19 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
         state.errors.append(f"run_reflector: LLM call failed for provider '{provider}': {exc}")
         return state
 
-    notes = response.notes
-    _log_reflection(dataset_name, notes)
+    valid_kpi_names = set(kpi_names)
+    valid_notes: list[ReflectionNote] = []
+    for note in response.notes:
+        if note.kpi_name not in valid_kpi_names:
+            state.errors.append(
+                "run_reflector: reflection referenced unknown KPI "
+                f"'{note.kpi_name}'. The note was ignored."
+            )
+            continue
+        valid_notes.append(note)
+
+    notes = valid_notes
+    _log_reflection(dataset_name, notes, reviewed_kpi_count=len(state.kpi_specs))
 
     if not notes:
         state.reflection_notes = notes
@@ -225,11 +261,6 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
     dropped_kpi_names: set[str] = set()
 
     for note in notes:
-        if note.kpi_name not in kpis_by_name:
-            # LLM referenced a KPI name that doesn't exist in this run —
-            # nothing to retry, nothing to drop, just keep the note for audit.
-            continue
-
         if note.fixed_sql_query is None:
             # No fix offered — per the issue, drop rather than retry with
             # nothing changed (that would just fail again).
