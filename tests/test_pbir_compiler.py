@@ -20,12 +20,18 @@ import json
 import pytest
 
 from agent.state import AgentState
+from agent.models import KPISpec, QueryResult
 from pbir.compiler.builder import run_pbir_compiler
 from pbir.compiler.serialiser import write_pbip
 
 from tests.fixtures_chinook import CHINOOK_PROFILE
 from tests.fixtures_chinook_query_results import CHINOOK_QUERY_RESULTS, CHINOOK_KPI_SPECS
 from tests.fixtures_hr import HR_PROFILE, HR_KPI_SPECS, HR_QUERY_RESULTS
+from tests.fixtures_online_retail import (
+    ONLINE_RETAIL_PROFILE,
+    ONLINE_RETAIL_KPI_SPECS,
+    ONLINE_RETAIL_QUERY_RESULTS,
+)
 
 
 @pytest.fixture
@@ -77,6 +83,32 @@ def compiled_hr_project(hr_state):
 def hr_output_dir(compiled_hr_project, tmp_path):
     out = tmp_path / "hr_report"
     write_pbip(compiled_hr_project, out)
+    return out
+
+
+@pytest.fixture
+def online_retail_state() -> AgentState:
+    return AgentState(
+        input_path="data/raw/online_retail.csv",
+        output_path="output/online_retail_report",
+        data_profile=ONLINE_RETAIL_PROFILE,
+        kpi_specs=ONLINE_RETAIL_KPI_SPECS,
+        query_results=ONLINE_RETAIL_QUERY_RESULTS,
+    )
+
+
+@pytest.fixture
+def compiled_online_retail_project(online_retail_state):
+    result_state = run_pbir_compiler(online_retail_state)
+    assert result_state.errors == [], f"Builder produced errors: {result_state.errors}"
+    assert result_state.pbir_project is not None
+    return result_state.pbir_project
+
+
+@pytest.fixture
+def online_retail_output_dir(compiled_online_retail_project, tmp_path):
+    out = tmp_path / "online_retail_report"
+    write_pbip(compiled_online_retail_project, out)
     return out
 
 
@@ -167,6 +199,192 @@ class TestBuilderHR:
     def test_report_name_derived_from_csv_filename_when_source_table_none(self, compiled_hr_project):
         """HR's source_table is None (CSV input) -- falls back to filename stem."""
         assert compiled_hr_project.report_name == "hr"
+
+
+class TestBuilderOnlineRetail:
+    """
+    SCOPE EXTENSION (2026-07-12): online_retail requires SQL->DAX shapes
+    beyond the original basic-DAX set to meet the project's own "all three
+    dataset reports open successfully" acceptance criterion --
+    SUM/AVG(ColA * ColB) -> SUMX/AVERAGEX, COUNT(DISTINCT col) ->
+    DISTINCTCOUNT, and WHERE -> CALCULATE(...) filtering. All still basic,
+    well-documented DAX; this is a small, deliberate widening of the
+    original SUM/AVERAGE/COUNT/DIVIDE/IF set, not exotic scope.
+    """
+
+    def test_produces_at_least_two_pages(self, compiled_online_retail_project):
+        assert len(compiled_online_retail_project.pages) >= 2
+
+    def test_meets_minimum_visual_acceptance_threshold(self, compiled_online_retail_project):
+        total = sum(len(p.visuals) for p in compiled_online_retail_project.pages)
+        assert total >= 4
+
+    def test_all_five_kpis_translate_successfully(self, compiled_online_retail_project):
+        """
+        All 5 KPIs (post-Reflector-fix) should now produce visuals: 2 cards
+        with WHERE-filtered SUMX/DISTINCTCOUNT, 1 barChart, 1 lineChart
+        (with GROUP-BY-alias resolution), 1 table with 2 WHERE-filtered
+        sibling measures.
+        """
+        total = sum(len(p.visuals) for p in compiled_online_retail_project.pages)
+        assert total == 5
+
+    def test_total_revenue_uses_sumx_wrapped_in_calculate(self, compiled_online_retail_project):
+        measures = [m for m in compiled_online_retail_project.data_table.measures if m.name == "Total Revenue"]
+        assert len(measures) == 1
+        expr = measures[0].expression
+        assert expr == "CALCULATE(SUMX('data', 'data'[Quantity] * 'data'[UnitPrice]), 'data'[Quantity] > 0)"
+
+    def test_aov_uses_distinctcount_and_sumx_both_filtered(self, compiled_online_retail_project):
+        measures = [m for m in compiled_online_retail_project.data_table.measures if m.name == "Average Order Value (AOV)"]
+        assert len(measures) == 1
+        expr = measures[0].expression
+        assert expr == (
+            "CALCULATE(DIVIDE(SUMX('data', 'data'[Quantity] * 'data'[UnitPrice]), "
+            "DISTINCTCOUNT('data'[InvoiceNo])), 'data'[Quantity] > 0)"
+        )
+
+    def test_monthly_trend_resolves_group_by_alias_to_real_column(self, compiled_online_retail_project):
+        """
+        REGRESSION GUARD: 'Monthly Sales Trend' GROUPs BY its own SELECT
+        alias (sales_month), not the real underlying column (InvoiceDate).
+        A prior version returned the bare alias directly, which would have
+        produced a visual.json Category binding to a nonexistent field.
+        """
+        for page in compiled_online_retail_project.pages:
+            for visual in page.visuals:
+                if visual.chart_type == "lineChart":
+                    assert visual.category_ref == "InvoiceDate"
+                    return
+        pytest.fail("no lineChart visual found in compiled Online Retail project")
+
+    def test_top_products_table_has_two_calculate_wrapped_measures(self, compiled_online_retail_project):
+        names_and_exprs = {
+            m.name: m.expression for m in compiled_online_retail_project.data_table.measures
+            if m.name.startswith("Top 10 Products by Quantity Sold")
+        }
+        assert len(names_and_exprs) == 2
+        for expr in names_and_exprs.values():
+            assert expr.startswith("CALCULATE(")
+            assert "'data'[Quantity] > 0" in expr
+
+    def test_top_products_visual_groups_by_first_column_of_multi_column_group_by(self, compiled_online_retail_project):
+        """GROUP BY StockCode, Description -> category_ref is StockCode (first column)."""
+        for page in compiled_online_retail_project.pages:
+            for visual in page.visuals:
+                if visual.chart_type == "table":
+                    assert visual.category_ref == "StockCode"
+                    return
+        pytest.fail("no table visual found in compiled Online Retail project")
+
+
+class TestMinimumVisualThreshold:
+    """
+    Directly exercises the MIN_VISUALS_REQUIRED acceptance gate in
+    run_pbir_compiler: individual untranslatable KPIs are dropped (not
+    fatal), but the whole build is rejected if too few KPIs survive
+    translation overall to meet the project's own visual-count criterion.
+    """
+
+    def test_build_rejected_when_fewer_than_four_visuals_survive(self):
+        from agent.models import DataProfile, ColumnProfile
+        from pbir.compiler.builder import run_pbir_compiler
+
+        profile = DataProfile(
+            source_path="data/raw/tiny.csv",
+            source_table=None,
+            row_count=10,
+            column_count=1,
+            is_single_row=False,
+            columns={"Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10)},
+        )
+        # Only 2 translatable KPIs -- below MIN_VISUALS_REQUIRED (4).
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name="Total", sql_query=kpi_specs[0].sql_query, status="pass", row_count=1, columns=["Amount"], result_rows=[]),
+            QueryResult(kpi_name="Average", sql_query=kpi_specs[1].sql_query, status="pass", row_count=1, columns=["Amount"], result_rows=[]),
+        ]
+        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.pbir_project is None
+        assert any("only 2 KPI(s)" in e for e in result.errors)
+
+    def test_build_accepted_when_exactly_four_visuals_survive(self):
+        from agent.models import DataProfile, ColumnProfile
+        from pbir.compiler.builder import run_pbir_compiler
+
+        profile = DataProfile(
+            source_path="data/raw/tiny.csv",
+            source_table=None,
+            row_count=10,
+            column_count=2,
+            is_single_row=False,
+            columns={
+                "Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
+                "Category": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
+            },
+        )
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="By Category", description="d", sql_query="SELECT Category, SUM(Amount) AS Amount FROM data GROUP BY Category", chart_type="barChart", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.errors == []
+        assert result.pbir_project is not None
+        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
+
+    def test_individual_untranslatable_kpi_is_dropped_not_fatal(self):
+        """
+        A mix where SOME KPIs fail translation but enough survive to clear
+        the threshold: the failing KPI is dropped and recorded in
+        state.errors, without aborting the whole build.
+        """
+        from agent.models import DataProfile, ColumnProfile
+        from pbir.compiler.builder import run_pbir_compiler
+
+        profile = DataProfile(
+            source_path="data/raw/tiny.csv",
+            source_table=None,
+            row_count=10,
+            column_count=2,
+            is_single_row=False,
+            columns={
+                "Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
+                "Category": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
+            },
+        )
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="By Category", description="d", sql_query="SELECT Category, SUM(Amount) AS Amount FROM data GROUP BY Category", chart_type="barChart", reasoning="r"),
+            # This one is genuinely untranslatable (addition, not a
+            # recognized shape) -- should be dropped, not fatal, since 4
+            # others still survive.
+            KPISpec(name="Bad KPI", description="d", sql_query="SELECT SUM(Amount + 1) AS Amount FROM data", chart_type="card", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.pbir_project is not None
+        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
+        assert any("Bad KPI" in e for e in result.errors)
 
 
 class TestSerialiserFolderStructure:
@@ -335,6 +553,71 @@ class TestTMDLFormatting:
             assert "Sqlite" not in tmdl_text
             assert "Odbc" not in tmdl_text
 
+    def test_m_query_never_doubles_windows_path_backslashes(self):
+        """
+        REGRESSION GUARD: M's only string-escape rule is doubling the quote
+        character; backslash has no special meaning and must never be
+        doubled. A prior version of _build_m_partition_source did
+        csv_path.replace("\\\\", "\\\\\\\\"), which silently broke every
+        Windows absolute path (Csv.Document would try to open a path with
+        doubled separators, matching nothing on disk) -- this was the root
+        cause of "some tables have incomplete or no data" in Power BI
+        Desktop, with no other error surfaced.
+        """
+        from pbir.compiler.serialiser import _build_m_partition_source
+        from pbir.models.column import Column
+
+        windows_path = r"C:\Users\ingex\OneDrive\Documents\data\raw\hr.csv"
+        cols = [Column(name="Age", data_type="int64", source_column="Age")]
+        source = _build_m_partition_source(windows_path, cols)
+
+        assert windows_path in source, "the exact single-backslash path must appear verbatim"
+        assert "\\\\" not in source, "no doubled backslashes should ever appear in the M source"
+
+    def test_filter_names_never_collide_on_long_visual_ids(self):
+        """
+        REGRESSION GUARD: a prior filter-naming scheme truncated the
+        CONCATENATED (visual_id + field_name) string to a fixed cap before
+        the differentiating suffix was applied, so once visual_id alone
+        approached that cap, multiple filters on the same visual collapsed
+        onto an identical name. Confirmed against a real compiled report:
+        a 4-field tableEx produced 4 filters all sharing one 40-char name.
+        Desktop's real constraint is 1-50 characters (from its own schema
+        validation error) -- not the 40 originally assumed.
+        """
+        from pbir.compiler.serialiser import _local_filter_id
+
+        long_visual_id = "viz_employee_sentiment_profile_by_job_role_table"
+        names = [_local_filter_id(long_visual_id, i) for i in range(4)]
+
+        assert len(set(names)) == 4, f"filter names collided: {names}"
+        for name in names:
+            assert 1 <= len(name) <= 50, f"filter name outside Desktop's 1-50 char limit: {name!r}"
+        assert all(name.endswith(f"_{i}") for i, name in enumerate(names)), (
+            "the differentiating _<idx> suffix must never be truncated away"
+        )
+
+    def test_common_filter_id_matches_serialiser_fix(self):
+        """
+        pbir/models/common.py's filter_id() had the identical truncation
+        bug as serialiser.py's _local_filter_id() (same root cause, two
+        call sites) -- fixed at the same time, same 50-char real
+        constraint, same "never truncate the differentiator" rule. This
+        guards common.py's copy specifically, since serialiser.py no
+        longer calls it directly but other code may still reach for it.
+        """
+        from pbir.models.common import filter_id
+
+        long_visual_id = "viz_average_monthly_income_by_department_barchart"
+        f0 = filter_id(long_visual_id, "MonthlyIncome", 0)
+        f1 = filter_id(long_visual_id, "Department", 1)
+
+        assert f0 != f1
+        assert 1 <= len(f0) <= 50
+        assert 1 <= len(f1) <= 50
+        assert f0.endswith("_0")
+        assert f1.endswith("_1")
+
 
 class TestSQLShapesFromRealFixtures:
     """Confirms the SQL->DAX translator correctly handles the real SQL
@@ -475,10 +758,35 @@ class TestRoundAndCountStar:
 
 
 class TestUnsupportedShapes:
-    def test_arithmetic_inside_aggregate_rejected(self):
-        """The 'Total Revenue' sabotage case: SUM(Total * InvoiceId)."""
+    def test_row_wise_product_now_supported_not_rejected(self):
+        """
+        SCOPE EXTENSION (2026-07-12): SUM(ColA * ColB) is now a legitimately
+        supported shape (-> DAX SUMX), needed for online_retail's revenue
+        KPIs where revenue = Quantity * UnitPrice has no precomputed column.
+        This SQL shape is syntactically identical to Chinook's original
+        "Total Revenue" sabotage case (SUM(Total * InvoiceId) -- multiplying
+        by a surrogate key) -- the translator cannot and should not try to
+        distinguish "legitimate line-item revenue" from "accidentally
+        multiplying by an ID column" by syntax alone; that's a data-
+        semantics judgment for the Reflector to catch upstream (which it
+        does, in chinook_reflection.json's real fixed_sql_query), not
+        something the SQL->DAX translator can police. This test replaces
+        the old test_arithmetic_inside_aggregate_rejected, which asserted a
+        rejection that was really just a side effect of the translator not
+        supporting this shape at all yet.
+        """
+        t = translate("SELECT SUM(Total * InvoiceId) AS Total FROM data", "data")
+        assert t.expression == "SUMX('data', 'data'[Total] * 'data'[InvoiceId])"
+
+    def test_addition_inside_aggregate_still_rejected(self):
+        """
+        Only a bare "col * col" product is recognized. Other arithmetic
+        (+, -, /, more than 2 operands, a literal constant operand) is NOT
+        guessed at -- e.g. SUM(ColA + ColB) has no _ROWWISE_PRODUCT_RE
+        match and falls through to the generic unsupported-shape error.
+        """
         with pytest.raises(SQLToDaxError):
-            translate("SELECT SUM(Total * InvoiceId) AS Total FROM data", "data")
+            translate("SELECT SUM(Total + InvoiceId) AS Total FROM data", "data")
 
     def test_multi_aggregate_rejected_by_translate(self):
         """translate() must reject 2 non-ratio aggregates; use translate_multi instead."""
