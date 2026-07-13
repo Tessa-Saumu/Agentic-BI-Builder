@@ -6,7 +6,7 @@ Usage (from project root, with venv activated):
     python scripts/profile_datasets.py
 
 Expects these files to already exist:
-    data/raw/chinook.sqlite       ← Chinook sample DB
+    data/raw/chinook.csv          ← Chinook sample DB (combined CSV - previously pointed at chinook.sqllite)
     data/raw/online_retail.csv    ← UCI Online Retail dataset
     data/raw/hr.csv               ← IBM HR Analytics dataset
 
@@ -44,7 +44,7 @@ except ImportError:
 
 DATASETS = [
     {
-        "input": "data/raw/chinook.sqlite",
+        "input": "data/raw/chinook.csv",
         "output": "data/profiles/chinook_profile.json",
         "label": "Chinook",
     },
@@ -81,7 +81,9 @@ def run_all() -> None:
             continue
 
         state = AgentState(input_path=input_path, output_path="output/placeholder")
-        result = run_profiler(state, table_name="Invoice" if label == "Chinook" else None)
+        
+        # We no longer need to specify table_name="Invoice" since we are profiling a single CSV
+        result = run_profiler(state)
 
         if result.errors:
             print(f"  ❌ Errors: {result.errors}")
@@ -108,18 +110,18 @@ def run_all() -> None:
             print(f"  Table: {profile.source_table}")
         print(f"  Columns with nulls ({len(null_cols)}): {null_cols[:5]}"
               + (" ..." if len(null_cols) > 5 else ""))
+              
     # Only print download instructions for datasets that were actually skipped
     if skipped:
         print(f"\n{'='*60}")
-        print("DOWNLOAD INSTRUCTIONS (for skipped datasets only)")
+        print("DOWNLOAD/CREATION INSTRUCTIONS (for skipped datasets only)")
         print("="*60)
 
         instructions = {
             "Chinook": """
-            Chinook SQLite:
-            https://github.com/lerocha/chinook-database/releases
-            → Download Chinook_Sqlite.sqlite → rename to chinook.sqlite
-            → Place in data/raw/
+            Chinook CSV:
+            Run your custom Chinook script to combine the 4 tables into one chinook.csv file
+            → Place the resulting file in data/raw/
             """,
                         "Online Retail": """
             Online Retail CSV:
