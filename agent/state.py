@@ -5,7 +5,7 @@ passed between nodes at every step of the pipeline.
 from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field
-from agent.models import DataProfile, DomainHypothesis, KPISpec
+from agent.models import DataProfile, DomainHypothesis, KPISpec, QueryResult, ReflectionNote
 
 
 class AgentState(BaseModel):
@@ -14,7 +14,7 @@ class AgentState(BaseModel):
     data_profile: Optional[DataProfile] = None
     domain_hypothesis: Optional[DomainHypothesis] = None
     kpi_specs: List[KPISpec] = Field(default_factory=list)
-    query_results: List[dict] = Field(default_factory=list)
-    reflection_notes: List[dict] = Field(default_factory=list)
+    query_results: List[QueryResult] = Field(default_factory=list)
+    reflection_notes: List[ReflectionNote] = Field(default_factory=list)
     pbir_project: Optional[dict] = None
     errors: List[str] = Field(default_factory=list)

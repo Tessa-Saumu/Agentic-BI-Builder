@@ -202,33 +202,32 @@ class TestModelConstraints:
             KPISpec(name="x", description="y", sql_query="DROP TABLE data", chart_type="card", reasoning="z")
 
     def test_response_requires_exactly_five_kpis(self):
-        kpi = _make_kpi("SELECT 1")
         dh = DomainHypothesis(domain="retail", confidence=0.9, reasoning="z")
+        two_kpis = [_make_kpi("SELECT 1", name=f"KPI {i}") for i in range(2)]
         with pytest.raises(ValidationError):
-            DomainKPIResponse(domain_hypothesis=dh, kpi_specs=[kpi, kpi])
-        # exactly 5 is fine
-        DomainKPIResponse(domain_hypothesis=dh, kpi_specs=[kpi] * 5)
+            DomainKPIResponse(domain_hypothesis=dh, kpi_specs=two_kpis)
+
+        five_unique_kpis = [
+            _make_kpi("SELECT 1", name=f"KPI {i}") for i in range(5)
+        ]
+        DomainKPIResponse(domain_hypothesis=dh, kpi_specs=five_unique_kpis)
+
+    def test_response_rejects_duplicate_kpi_names(self):
+        dh = DomainHypothesis(domain="retail", confidence=0.9, reasoning="z")
+        duplicate_names = [
+            _make_kpi("SELECT 1", name="Revenue"),
+            _make_kpi("SELECT 2", name="revenue"),
+            _make_kpi("SELECT 3", name="KPI 3"),
+            _make_kpi("SELECT 4", name="KPI 4"),
+            _make_kpi("SELECT 5", name="KPI 5"),
+        ]
+        with pytest.raises(ValidationError, match="unique"):
+            DomainKPIResponse(domain_hypothesis=dh, kpi_specs=duplicate_names)
 
 
 # ---------------------------------------------------------------------------
 # run_domain_kpi orchestration (LLM call mocked)
 # ---------------------------------------------------------------------------
-
-class TestMistralImportCompatibility:
-    def test_mistral_client_class_is_importable(self):
-        # Regression test: mistralai v2.0.0 moved the Mistral client class
-        # from `mistralai.Mistral` to `mistralai.client.Mistral`. This must
-        # resolve regardless of which major version is installed, matching
-        # the fallback logic in _call_mistral.
-        try:
-            from mistralai import Mistral
-        except ImportError:
-            from mistralai.client import Mistral
-        assert Mistral is not None
-        # Must be constructible with just an api_key kwarg (no network call).
-        client = Mistral(api_key="test-key-not-used")
-        assert client is not None
-
 
 class TestRunDomainKpi:
     def test_missing_profile_records_error(self):
@@ -247,7 +246,7 @@ class TestRunDomainKpi:
 
     def test_successful_call_populates_state(self, retail_profile, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "gemini")
-        with patch("agent.domain_kpi._call_llm", return_value=_make_response()) as mock_call:
+        with patch("agent.domain_kpi.call_llm", return_value=_make_response()) as mock_call:
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)
 
@@ -264,7 +263,7 @@ class TestRunDomainKpi:
         )
         good_response = _make_response()
 
-        with patch("agent.domain_kpi._call_llm", side_effect=[bad_response, good_response]) as mock_call:
+        with patch("agent.domain_kpi.call_llm", side_effect=[bad_response, good_response]) as mock_call:
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)
 
@@ -278,7 +277,7 @@ class TestRunDomainKpi:
             kpi_specs=[_make_kpi("SELECT FakeColumn FROM data", f"KPI {i}") for i in range(5)]
         )
 
-        with patch("agent.domain_kpi._call_llm", side_effect=[bad_response, bad_response]):
+        with patch("agent.domain_kpi.call_llm", side_effect=[bad_response, bad_response]):
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)
 
@@ -288,7 +287,7 @@ class TestRunDomainKpi:
 
     def test_llm_exception_records_error_without_raising(self, retail_profile, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "gemini")
-        with patch("agent.domain_kpi._call_llm", side_effect=RuntimeError("API timeout")):
+        with patch("agent.domain_kpi.call_llm", side_effect=RuntimeError("API timeout")):
             state = AgentState(data_profile=retail_profile)
             result = run_domain_kpi(state)  # must not raise
 

@@ -7,7 +7,7 @@ for all downstream nodes (Planner, SQL Generator, PBIR Compiler).
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -101,7 +101,89 @@ class DomainKPIResponse(BaseModel):
 
     @field_validator("kpi_specs")
     @classmethod
-    def _exactly_five(cls, v: list[KPISpec]) -> list[KPISpec]:
+    def _validate_kpi_collection(cls, v: list[KPISpec]) -> list[KPISpec]:
         if len(v) != 5:
             raise ValueError(f"Expected exactly 5 KPISpec objects, got {len(v)}")
+
+        names = [kpi.name.strip().casefold() for kpi in v]
+        if len(names) != len(set(names)):
+            raise ValueError("KPI names must be unique")
+
         return v
+
+
+# Cap on how many result rows are retained per QueryResult. Full result sets
+# can be large (e.g. revenue-by-customer across thousands of customers) and
+# don't need to be fully materialized for the Reflector's prompt or a log
+# file — a representative sample is enough to judge null-heaviness or
+# implausible values.
+MAX_RESULT_ROWS_STORED = 20
+
+
+class QueryResult(BaseModel):
+    """Outcome of executing a single KPISpec's sql_query against real data."""
+
+    kpi_name: str = Field(description="Matches the KPISpec.name this result belongs to.")
+    sql_query: str = Field(
+        description="The exact SQL that was executed to produce this result "
+                    "(post-fix, if this is a retry)."
+    )
+    status: Literal["pass", "fail"] = Field(
+        description="'pass' if the query executed without error, 'fail' otherwise. "
+                    "An empty result set is still a 'pass' — zero rows is not an error."
+    )
+    row_count: int = Field(default=0, description="Total rows returned by the query.")
+    columns: list[str] = Field(
+        default_factory=list, description="Column names in the result set, in order."
+    )
+    result_rows: list[dict] = Field(
+        default_factory=list,
+        description=f"Up to {MAX_RESULT_ROWS_STORED} result rows as records "
+                    "(column name → value), for downstream inspection by the Reflector.",
+    )
+    error_message: Optional[str] = Field(
+        default=None, description="SQL error text if status is 'fail'; None otherwise."
+    )
+
+
+class ReflectionNote(BaseModel):
+    """A single issue the Reflector identified in one KPI's query or results."""
+
+    kpi_name: str = Field(description="Matches the KPISpec.name / QueryResult.kpi_name being flagged.")
+    issue_type: Literal["null_heavy", "wrong_aggregation", "implausible_result", "sql_error", "other"] = Field(
+        description="Category of the identified issue. Use 'other' for a genuine issue that "
+                    "doesn't fit the four specific categories (e.g. a duplicate KPI, a "
+                    "misleading chart_type choice) — 'other' still gets reported and, if "
+                    "fixable, retried, rather than being silently dropped."
+    )
+    description: str = Field(description="What is wrong and why, in plain terms.")
+    fix_instruction: str = Field(
+        description="Human-readable explanation of the fix, for logging/audit purposes."
+    )
+    fixed_sql_query: Optional[str] = Field(
+        default=None,
+        description="The corrected SQL query to retry with. None if the issue cannot "
+                    "be fixed by changing the SQL (e.g. the underlying data is genuinely "
+                    "null-heavy and no query rewrite would help) — such KPIs are dropped "
+                    "without a retry.",
+    )
+
+    @field_validator("fixed_sql_query")
+    @classmethod
+    def _fixed_sql_must_be_select(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        stripped = v.strip().rstrip(";").strip()
+        if not stripped.lower().startswith("select"):
+            raise ValueError("fixed_sql_query must be a SELECT statement")
+        return stripped
+
+
+class ReflectionResponse(BaseModel):
+    """Full structured response expected from the Reflector LLM call."""
+
+    notes: list[ReflectionNote] = Field(
+        default_factory=list,
+        description="One entry per KPI with an identified issue. Empty list means "
+                    "no issues were found across any KPI — a valid, good outcome.",
+    )
