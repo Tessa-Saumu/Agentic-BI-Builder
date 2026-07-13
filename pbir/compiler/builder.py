@@ -96,17 +96,74 @@ _AGG_MAP = {
     "count": "COUNT",
 }
 
-# A single-value KPI (card): exactly one aggregate call, nothing else
-# selected, no GROUP BY. e.g. "SELECT SUM(Total) AS Total FROM data"
-_SINGLE_AGG_RE = re.compile(
-    r"""^SELECT\s+
-        (?P<agg>SUM|AVG|COUNT)\s*\(\s*(?:DISTINCT\s+)?(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*\)
-        \s+AS\s+\w+\s+
-        FROM\s+(?P<table>[A-Za-z_][A-Za-z0-9_]*)
-        \s*$
-    """,
+# SCOPE EXTENSION (2026-07-12): to satisfy the "all three datasets open
+# successfully" acceptance criterion, online_retail's KPIs require two new
+# shapes the original basic-DAX set (SUM/AVERAGE/COUNT/DIVIDE/IF) didn't
+# cover -- both are standard, well-documented DAX, not exotic scope:
+#
+#   1. Row-wise arithmetic inside an aggregate: SUM(ColA * ColB) -- e.g.
+#      online_retail's revenue = SUM(Quantity * UnitPrice), since there is
+#      no precomputed "revenue" column. DAX has no way to SUM a per-row
+#      expression directly the way SQL's SUM(a*b) does; the standard DAX
+#      equivalent is the row-context iterator SUMX(table, expr). Likewise
+#      AVERAGE(a*b) -> AVERAGEX(table, expr), added for consistency with
+#      SUMX even though no current KPI in any of the 3 datasets uses it --
+#      it's the same shape of extension and costs nothing to support
+#      alongside SUMX.
+#   2. COUNT(DISTINCT col) -> DAX DISTINCTCOUNT(col). Needed for
+#      online_retail's Average Order Value KPI (COUNT(DISTINCT InvoiceNo),
+#      counting unique orders rather than line-item rows).
+#
+# A third shape -- a SQL WHERE clause -- is handled separately, see the
+# _WHERE_CLAUSE_RE section below and translate()'s WHERE-stripping step.
+_ROWWISE_AGG_MAP = {
+    "sum": "SUMX",
+    "avg": "AVERAGEX",
+}
+
+# SUM(ColA * ColB) or AVG(ColA * ColB) -- exactly two column operands
+# multiplied together inside the aggregate. Only a bare "col * col" product
+# is recognized (matching every real KPI seen so far); other arithmetic
+# (+, -, /, more than 2 operands, a literal constant operand) is NOT
+# guessed at and falls through to the existing "unsupported shape" error.
+_ROWWISE_PRODUCT_RE = re.compile(
+    r"""^(?P<agg>SUM|AVG)\s*\(\s*
+        (?P<col1>[A-Za-z_][A-Za-z0-9_]*)\s*\*\s*(?P<col2>[A-Za-z_][A-Za-z0-9_]*)
+        \s*\)$""",
     re.IGNORECASE | re.VERBOSE,
 )
+
+# COUNT(DISTINCT col) -- as its own aggregate, standalone or as one operand
+# of a ratio (e.g. SUM(a*b) / COUNT(DISTINCT c)).
+_DISTINCT_COUNT_RE = re.compile(
+    r"""^COUNT\s*\(\s*DISTINCT\s+(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*\)$""",
+    re.IGNORECASE,
+)
+
+# A SQL WHERE clause on the outermost query -- captured and stripped before
+# the rest of translate() runs, then re-applied as a DAX CALCULATE(...)
+# filter argument around the final translated expression. Only a single
+# "<column> <op> <value>" condition is recognized (matching every WHERE in
+# the 3 datasets' real KPIs: "Quantity > 0", "1=1" is treated as no-op);
+# AND/OR-joined multi-condition WHEREs are NOT guessed at and fall through
+# to the existing "unsupported shape" error.
+_WHERE_CLAUSE_RE = re.compile(
+    r"""\s+WHERE\s+(?P<condition>[A-Za-z_][A-Za-z0-9_]*\s*(?:>|<|>=|<=|=|!=|<>)\s*'?[^'\s]+'?|1\s*=\s*1)
+        \s*(?P<trailing>GROUP\s+BY.*|ORDER\s+BY.*|LIMIT.*)?$""",
+    re.IGNORECASE | re.VERBOSE | re.DOTALL,
+)
+
+_CONDITION_RE = re.compile(
+    r"""^(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*(?P<op>>=|<=|!=|<>|>|<|=)\s*'?(?P<val>[^'\s]+)'?$""",
+    re.VERBOSE,
+)
+
+# SQL comparison operator -> DAX comparison operator (identical for every
+# operator actually seen in these datasets; kept as an explicit map rather
+# than assuming SQL and DAX operators always coincide for every future one).
+_SQL_TO_DAX_OP = {
+    ">": ">", "<": "<", ">=": ">=", "<=": "<=", "=": "=", "!=": "<>", "<>": "<>",
+}
 
 # COUNT(*) as the sole aggregate: "SELECT COUNT(*) AS n FROM data".
 _COUNT_STAR_RE = re.compile(
@@ -126,17 +183,15 @@ _GROUPED_AGG_RE = re.compile(
 # Same as above but for COUNT(*) AS alias inside a grouped query.
 _GROUPED_COUNT_STAR_RE = re.compile(r"COUNT\s*\(\s*\*\s*\)\s+AS\s+\w+", re.IGNORECASE)
 
-# A ratio KPI: SUM(a)/COUNT(b) AS alias FROM table, no GROUP BY.
+# A ratio KPI: <aggregate-expr> / <aggregate-expr> AS alias FROM table, no
+# GROUP BY. Only used now to detect THAT a top-level "/" exists outside any
+# parens (see _split_top_level_operator below) -- the two sides are each
+# recursively translated via _translate_core so this composes with every
+# other shape (plain aggregate, SUMX/AVERAGEX product, DISTINCTCOUNT), e.g.
+# online_retail's AOV: SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo).
 _RATIO_RE = re.compile(
-    r"""^SELECT\s+
-        (?P<agg1>SUM|AVG|COUNT)\s*\(\s*(?:DISTINCT\s+)?(?P<col1>[A-Za-z_][A-Za-z0-9_]*)\s*\)
-        \s*/\s*
-        (?P<agg2>SUM|AVG|COUNT)\s*\(\s*(?:DISTINCT\s+)?(?P<col2>[A-Za-z_][A-Za-z0-9_]*)\s*\)
-        \s+AS\s+\w+\s+
-        FROM\s+[A-Za-z_][A-Za-z0-9_]*
-        \s*$
-    """,
-    re.IGNORECASE | re.VERBOSE,
+    r"""^SELECT\s+(?P<expr>.+)\s+AS\s+\w+\s+FROM\s+[A-Za-z_][A-Za-z0-9_]*\s*$""",
+    re.IGNORECASE | re.VERBOSE | re.DOTALL,
 )
 
 # ROUND(<inner>, <n>) AS alias FROM table -- captures the inner expression
@@ -172,12 +227,91 @@ _CONDITIONAL_PCT_RE = re.compile(
 _CURRENCY_COLUMN_HINTS = {"total", "price", "cost", "revenue", "amount", "sales", "income"}
 
 
+def _strip_where_clause(sql_query: str) -> tuple[str, str | None]:
+    """
+    Extracts a single WHERE condition from `sql_query` and returns
+    (sql_without_where, condition_or_None).
+
+    "1=1" is treated as a no-op filter (SQL idiom for "always true", seen
+    in one of online_retail's KPIs before Reflector correction) and
+    returned as condition=None -- it adds nothing to translate as DAX.
+
+    Only ONE simple "<column> <op> <value>" condition is recognized
+    (matching every real WHERE across the 3 datasets' KPIs, e.g.
+    "Quantity > 0"). AND/OR-joined multi-condition WHEREs are not
+    recognized -- sql_without_where is returned unchanged (WHERE clause
+    left in place) so the caller's existing regexes fail to match it and
+    raise the standard "unsupported shape" error, rather than silently
+    dropping a filter condition the compiler doesn't actually understand.
+    """
+    match = _WHERE_CLAUSE_RE.search(sql_query)
+    if not match:
+        return sql_query, None
+
+    condition_text = match.group("condition").strip()
+    trailing = (match.group("trailing") or "").strip()
+
+    if re.match(r"^1\s*=\s*1$", condition_text, re.IGNORECASE):
+        condition = None
+    else:
+        cond_match = _CONDITION_RE.match(condition_text)
+        if cond_match is None:
+            # A condition shape we don't recognize (e.g. involves a
+            # function call, an AND/OR, or a form _CONDITION_RE doesn't
+            # match) -- leave the SQL untouched so it falls through to the
+            # normal unsupported-shape error instead of guessing.
+            return sql_query, "__UNRECOGNIZED__"
+        col = cond_match.group("col")
+        op = _SQL_TO_DAX_OP.get(cond_match.group("op"))
+        if op is None:
+            return sql_query, "__UNRECOGNIZED__"
+        val = cond_match.group("val")
+        # Numeric values are embedded bare; anything else is treated as a
+        # DAX string literal (double-quoted). Every WHERE seen so far
+        # compares against a bare number (e.g. "Quantity > 0").
+        try:
+            float(val)
+            dax_val = val
+        except ValueError:
+            dax_val = f'"{val}"'
+        condition = f"col::{col}::{op}::{dax_val}"
+
+    without_where = sql_query[: match.start()] + (f" {trailing}" if trailing else "")
+    return without_where.strip(), condition
+
+
+def _apply_where_filter(translation: DaxTranslation, condition: str | None, table_name: str) -> DaxTranslation:
+    """
+    Wraps an already-translated DaxTranslation in DAX CALCULATE(...) if
+    `condition` is a real (recognized) filter condition. condition is the
+    "col::name::op::value" encoding produced by _strip_where_clause; see
+    that function's docstring for what forms are recognized.
+    """
+    if condition is None:
+        return translation
+    if condition == "__UNRECOGNIZED__":
+        raise SQLToDaxError(
+            "WHERE clause present but its condition shape is not recognized "
+            "(only a single 'column OP value' comparison is supported)."
+        )
+    _, col, op, val = condition.split("::")
+    wrapped = f"CALCULATE({translation.expression}, '{table_name}'[{col}] {op} {val})"
+    return DaxTranslation(
+        expression=wrapped,
+        aggregation=translation.aggregation,
+        source_column=translation.source_column,
+        is_currency=translation.is_currency,
+        is_percentage=translation.is_percentage,
+    )
+
+
 def _translate_core(stripped: str, table_name: str) -> DaxTranslation:
     """
     Translates a SELECT expression's core aggregate shape (no ROUND
     wrapper, no GROUP BY concerns -- those are handled by the callers).
     Tries, in order: conditional-count-percentage, ratio, COUNT(*),
-    plain single aggregate.
+    COUNT(DISTINCT col), row-wise product (SUM/AVG(colA * colB)), plain
+    single aggregate.
     """
     cond_match = _CONDITIONAL_PCT_RE.match(stripped)
     if cond_match:
@@ -194,13 +328,19 @@ def _translate_core(stripped: str, table_name: str) -> DaxTranslation:
             is_percentage=True,
         )
 
-    # _RATIO_RE expects a full "SELECT ... AS alias FROM table" shape, but
-    # this function receives a bare inner expression (e.g. when called from
-    # inside a ROUND(...) unwrap) -- wrap it to reuse the same regex rather
-    # than duplicate the ratio pattern in a second, expression-only form.
-    ratio_match = _RATIO_RE.match(f"SELECT {stripped} AS x FROM {table_name}")
-    if ratio_match:
-        return _ratio_from_match(ratio_match, table_name)
+    # IMPORTANT ORDERING: the conditional-percentage check above must run
+    # BEFORE this ratio check, since that pattern's own expression contains
+    # a top-level "/" too (SUM(CASE WHEN...) * 100.0 / COUNT(*)) -- if the
+    # ratio check ran first, it would incorrectly split that expression on
+    # its "/" and produce a plain DIVIDE(SUM(...), COUNT(*)) instead of the
+    # correct FILTER/COUNTROWS percentage idiom. _try_ratio recursively
+    # translates each side via _translate_core, so it composes with every
+    # other shape below it (SUMX/AVERAGEX products, DISTINCTCOUNT, plain
+    # aggregates) -- e.g. online_retail's AOV: SUM(Quantity * UnitPrice) /
+    # COUNT(DISTINCT InvoiceNo).
+    ratio_translation = _try_ratio(stripped, table_name)
+    if ratio_translation is not None:
+        return ratio_translation
 
     count_star_match = re.match(r"^COUNT\s*\(\s*\*\s*\)$", stripped, re.IGNORECASE)
     if count_star_match:
@@ -210,8 +350,56 @@ def _translate_core(stripped: str, table_name: str) -> DaxTranslation:
             source_column="*",
         )
 
+    # BUG FIX (2026-07-12): must be checked BEFORE the plain single-aggregate
+    # match below, whose regex's optional "(?:DISTINCT\s+)?" group matched
+    # COUNT(DISTINCT col) too but then silently discarded the DISTINCT
+    # keyword, translating it as plain COUNT('table'[col]) -- counting
+    # every row (including duplicates) instead of distinct values. Real
+    # DAX has a dedicated function for this (DISTINCTCOUNT), which is the
+    # only correct translation; a plain COUNT is not equivalent and would
+    # silently produce a wrong number for online_retail's Average Order
+    # Value KPI (COUNT(DISTINCT InvoiceNo) -- unique orders, not line-item
+    # rows).
+    distinct_count_match = _DISTINCT_COUNT_RE.match(stripped)
+    if distinct_count_match:
+        col = distinct_count_match.group("col")
+        return DaxTranslation(
+            expression=f"DISTINCTCOUNT('{table_name}'[{col}])",
+            aggregation="DISTINCTCOUNT",
+            source_column=col,
+        )
+
+    # SCOPE EXTENSION (2026-07-12): SUM(ColA * ColB) / AVG(ColA * ColB) --
+    # see the _ROWWISE_PRODUCT_RE / _ROWWISE_AGG_MAP comment above for why
+    # this needs SUMX/AVERAGEX rather than a plain SUM/AVERAGE. Must be
+    # checked before the plain single-aggregate match below, since that
+    # regex's column-name group would not match "ColA * ColB" anyway (no
+    # silent-wrong-answer risk here, just ordering for clarity).
+    rowwise_match = _ROWWISE_PRODUCT_RE.match(stripped)
+    if rowwise_match:
+        agg = rowwise_match.group("agg").lower()
+        col1 = rowwise_match.group("col1")
+        col2 = rowwise_match.group("col2")
+        dax_func = _ROWWISE_AGG_MAP[agg]
+        expression = (
+            f"{dax_func}('{table_name}', '{table_name}'[{col1}] * '{table_name}'[{col2}])"
+        )
+        # Currency-hint on a product like Quantity * UnitPrice: flag as
+        # currency if either operand column name suggests money (a
+        # quantity-times-price product is a monetary total even though
+        # neither individual column alone might match every heuristic).
+        is_currency = (
+            col1.lower() in _CURRENCY_COLUMN_HINTS or col2.lower() in _CURRENCY_COLUMN_HINTS
+        )
+        return DaxTranslation(
+            expression=expression,
+            aggregation=dax_func,
+            source_column=f"{col1}_{col2}",
+            is_currency=is_currency,
+        )
+
     single_match = re.match(
-        r"^(?P<agg>SUM|AVG|COUNT)\s*\(\s*(?:DISTINCT\s+)?(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*\)$",
+        r"^(?P<agg>SUM|AVG|COUNT)\s*\(\s*(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*\)$",
         stripped,
         re.IGNORECASE,
     )
@@ -234,6 +422,23 @@ def translate(sql_query: str, table_name: str) -> DaxTranslation:
     Translate a KPI's sql_query into a single DAX aggregation expression.
     See module docstring for the full list of recognized shapes.
 
+    A WHERE clause (if present) is stripped before the rest of the
+    translation logic runs, then re-applied at the end as a DAX
+    CALCULATE(...) filter wrapping the final expression -- e.g.
+    online_retail's "Total Revenue": SELECT SUM(Quantity * UnitPrice) AS
+    total_revenue FROM data WHERE Quantity > 0 -> CALCULATE(SUMX('data',
+    'data'[Quantity] * 'data'[UnitPrice]), 'data'[Quantity] > 0).
+    """
+    sql_without_where, condition = _strip_where_clause(sql_query)
+    translation = _translate_without_where(sql_without_where, table_name, original_sql=sql_query)
+    return _apply_where_filter(translation, condition, table_name)
+
+
+def _translate_without_where(sql_query: str, table_name: str, original_sql: str | None = None) -> DaxTranslation:
+    """
+    The original translate() logic, operating on SQL with any WHERE clause
+    already stripped by the public translate() wrapper above.
+
     Multi-aggregate combinations that are NOT one of the recognized ratio/
     conditional-percentage shapes (e.g. a "top customers" table selecting
     both a COUNT and a SUM as independent output columns) are NOT handled
@@ -241,6 +446,7 @@ def translate(sql_query: str, table_name: str) -> DaxTranslation:
     translate_multi() instead. Nested/arithmetic aggregates outside the
     recognized shapes are NOT guessed at -- raises SQLToDaxError.
     """
+    error_sql = original_sql if original_sql is not None else sql_query
     stripped = sql_query.strip().rstrip(";").strip()
 
     # Case 1: ROUND(...) wraps the ENTIRE select expression, no GROUP BY --
@@ -269,37 +475,34 @@ def translate(sql_query: str, table_name: str) -> DaxTranslation:
         raise SQLToDaxError(
             f"Cannot translate SQL to basic DAX (GROUP BY query does not have "
             f"exactly one aggregate expression in its SELECT list -- use "
-            f"translate_multi() for multi-measure table KPIs): {sql_query!r}"
+            f"translate_multi() for multi-measure table KPIs): {error_sql!r}"
         )
 
-    # Case 3: no GROUP BY, no ROUND wrapper -- try COUNT(*), ratio, or a
-    # plain single aggregate directly.
-    if _COUNT_STAR_RE.match(stripped):
-        return DaxTranslation(expression=f"COUNTROWS('{table_name}')", aggregation="COUNTROWS", source_column="*")
-
-    ratio_match = _RATIO_RE.match(stripped)
-    if ratio_match:
-        return _ratio_from_match(ratio_match, table_name)
-
-    single_match = _SINGLE_AGG_RE.match(stripped)
-    if single_match is not None:
-        agg = single_match.group("agg").lower()
-        col = single_match.group("col")
-        dax_func = _AGG_MAP[agg]
-        return DaxTranslation(
-            expression=f"{dax_func}('{table_name}'[{col}])",
-            aggregation=dax_func,
-            source_column=col,
-            is_currency=col.lower() in _CURRENCY_COLUMN_HINTS,
-        )
+    # Case 3: no GROUP BY, no ROUND wrapper. Extract the single SELECT-list
+    # expression (there is exactly one column selected in this shape --
+    # "SELECT <expr> AS alias FROM table", no grouping columns alongside
+    # it) and delegate to _translate_core, which tries (in order)
+    # conditional-percentage, ratio, COUNT(*), COUNT(DISTINCT col),
+    # row-wise product (SUMX/AVERAGEX), then a plain single aggregate.
+    # Delegating here (rather than duplicating each of those checks a
+    # second time) is what lets a bare, non-ratio SUM(ColA * ColB) --
+    # e.g. online_retail's "Total Revenue": SUM(Quantity * UnitPrice), no
+    # GROUP BY, no ratio -- resolve correctly instead of only being
+    # reachable through the ROUND-wrapper or GROUP-BY paths.
+    select_match = re.match(r"^SELECT\s+(?P<expr>.+?)\s+AS\s+\w+\s+FROM\s+[A-Za-z_][A-Za-z0-9_]*\s*$", stripped, re.IGNORECASE | re.DOTALL)
+    if select_match is not None:
+        try:
+            return _translate_core(select_match.group("expr").strip(), table_name)
+        except SQLToDaxError:
+            pass
 
     if len(list(_GROUPED_AGG_RE.finditer(stripped))) > 1:
         raise SQLToDaxError(
             f"Cannot translate SQL to basic DAX (multiple aggregates in one "
-            f"query -- needs more than a single measure): {sql_query!r}"
+            f"query -- needs more than a single measure): {error_sql!r}"
         )
 
-    raise SQLToDaxError(f"Cannot translate SQL to basic DAX (unsupported shape): {sql_query!r}")
+    raise SQLToDaxError(f"Cannot translate SQL to basic DAX (unsupported shape): {error_sql!r}")
 
 
 def _translate_expr_maybe_round(expr: str, table_name: str) -> DaxTranslation:
@@ -319,20 +522,46 @@ def _translate_expr_maybe_round(expr: str, table_name: str) -> DaxTranslation:
     return _translate_core(expr, table_name)
 
 
-def _ratio_from_match(ratio_match, table_name: str) -> DaxTranslation:
-    num_func = _AGG_MAP[ratio_match.group("agg1").lower()]
-    denom_func = _AGG_MAP[ratio_match.group("agg2").lower()]
-    num_col = ratio_match.group("col1")
-    denom_col = ratio_match.group("col2")
-    expression = (
-        f"DIVIDE({num_func}('{table_name}'[{num_col}]), "
-        f"{denom_func}('{table_name}'[{denom_col}]))"
-    )
+def _split_top_level_operator(text: str, operator: str) -> tuple[str, str] | None:
+    """
+    Splits `text` on the first occurrence of `operator` that is NOT nested
+    inside parentheses. Returns (left, right) with both sides stripped, or
+    None if the operator never appears at paren-depth 0. Used to detect a
+    ratio's "/" without false-matching a "/" that might appear inside a
+    function call's arguments (none currently do, but this is more robust
+    than a regex that assumes the "/" is always at the top level).
+    """
+    depth = 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == operator and depth == 0:
+            return text[:i].strip(), text[i + 1 :].strip()
+    return None
+
+
+def _try_ratio(expr: str, table_name: str) -> DaxTranslation | None:
+    """
+    If `expr` is <left> / <right> at the top level, recursively translates
+    both sides via _translate_core and combines them with DAX DIVIDE(...).
+    Returns None (not a ratio) if there's no top-level "/". This replaces
+    the old regex-only ratio matcher so a ratio's operands can be ANY
+    recognized _translate_core shape -- plain aggregate, SUMX/AVERAGEX
+    product, or DISTINCTCOUNT -- not just a bare-column aggregate.
+    """
+    split = _split_top_level_operator(expr, "/")
+    if split is None:
+        return None
+    left, right = split
+    num = _translate_core(left, table_name)
+    denom = _translate_core(right, table_name)
     return DaxTranslation(
-        expression=expression,
+        expression=f"DIVIDE({num.expression}, {denom.expression})",
         aggregation="DIVIDE",
-        source_column=num_col,
-        is_currency=num_col.lower() in _CURRENCY_COLUMN_HINTS,
+        source_column=num.source_column,
+        is_currency=num.is_currency,
     )
 
 
@@ -420,8 +649,18 @@ def translate_multi(sql_query: str, table_name: str) -> list[DaxTranslation]:
     as separate output columns -- translate EACH aggregate expression
     (including ROUND(...)-wrapped and COUNT(*) ones) into its own
     DaxTranslation/measure, rather than rejecting the KPI outright.
+
+    A WHERE clause (if present) is stripped before parsing the SELECT
+    list, then re-applied as a DAX CALCULATE(...) filter around EVERY
+    resulting measure -- e.g. online_retail's "Top 10 Products by Quantity
+    Sold": ...FROM data WHERE Quantity > 0 GROUP BY StockCode, Description
+    -> both total_quantity_sold and revenue_contribution get wrapped in
+    CALCULATE(..., 'data'[Quantity] > 0), since the filter applies to the
+    whole query, not just one of its several aggregate columns.
     """
-    select_match = re.match(r"^SELECT\s+(?P<cols>.+?)\s+FROM\s", sql_query.strip(), re.IGNORECASE | re.DOTALL)
+    sql_without_where, condition = _strip_where_clause(sql_query)
+
+    select_match = re.match(r"^SELECT\s+(?P<cols>.+?)\s+FROM\s", sql_without_where.strip(), re.IGNORECASE | re.DOTALL)
     if not select_match:
         raise SQLToDaxError(f"Cannot translate SQL to basic DAX (no SELECT found): {sql_query!r}")
 
@@ -442,17 +681,17 @@ def translate_multi(sql_query: str, table_name: str) -> list[DaxTranslation]:
         round_m = re.match(r"^ROUND\s*\(\s*(?P<inner>.+?)\s*,\s*(?P<precision>\d+)\s*\)$", expr, re.IGNORECASE | re.DOTALL)
         if round_m:
             inner_translation = _translate_core(round_m.group("inner").strip(), table_name)
-            translations.append(
-                DaxTranslation(
-                    expression=f"ROUND({inner_translation.expression}, {round_m.group('precision')})",
-                    aggregation="ROUND",
-                    source_column=inner_translation.source_column,
-                    is_currency=inner_translation.is_currency,
-                    is_percentage=inner_translation.is_percentage,
-                )
+            translation = DaxTranslation(
+                expression=f"ROUND({inner_translation.expression}, {round_m.group('precision')})",
+                aggregation="ROUND",
+                source_column=inner_translation.source_column,
+                is_currency=inner_translation.is_currency,
+                is_percentage=inner_translation.is_percentage,
             )
         else:
-            translations.append(_translate_core(expr, table_name))
+            translation = _translate_core(expr, table_name)
+
+        translations.append(_apply_where_filter(translation, condition, table_name))
 
     if not translations:
         raise SQLToDaxError(
@@ -468,11 +707,18 @@ def extract_group_by_column(sql_query: str) -> str | None:
     Category/Rows role binds to. Returns the bare column name being grouped
     on, or None if there's no GROUP BY (e.g. a plain card-style aggregate).
 
-    Handles two shapes:
+    Handles three shapes:
       - GROUP BY <Column>                        -> "Column"
       - GROUP BY strftime('<fmt>', <Column>)      -> "Column" (innermost arg,
         not the function name -- this is the date-truncation pattern the
         Domain/KPI node uses for "Monthly X Trend" style KPIs)
+      - GROUP BY <Column1>, <Column2>, ...        -> "Column1" (the FIRST
+        column only -- e.g. online_retail's "Top 10 Products by Quantity
+        Sold": GROUP BY StockCode, Description. A table visual's category/
+        Rows role binds to one primary grouping column; Description here is
+        a co-grouped display column, not a second independent category, so
+        taking just the first is the correct single binding rather than an
+        arbitrary choice.)
     """
     match = re.search(
         r"GROUP\s+BY\s+(?P<expr>.+?)(?:\s+ORDER\s+BY|\s+LIMIT|\s*$)",
@@ -483,6 +729,17 @@ def extract_group_by_column(sql_query: str) -> str | None:
         return None
     expr = match.group("expr").strip()
 
+    # Multi-column GROUP BY (comma-separated, no nested function calls in
+    # this shape) -- take the first column only. Checked before the
+    # single-function-call case below since a plain "A, B" has no
+    # wrapping parens to match that pattern anyway, but explicit ordering
+    # avoids any ambiguity.
+    if "," in expr and "(" not in expr:
+        first = expr.split(",")[0].strip()
+        plain_first_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)$", first)
+        if plain_first_match:
+            return plain_first_match.group(1)
+
     func_call = re.match(r"^\w+\s*\((?P<args>.+)\)\s*$", expr)
     if func_call:
         args = func_call.group("args")
@@ -490,7 +747,55 @@ def extract_group_by_column(sql_query: str) -> str | None:
         return idents[-1] if idents else None
 
     plain_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)$", expr)
-    return plain_match.group(1) if plain_match else None
+    if plain_match:
+        bare_name = plain_match.group(1)
+        # BUG FIX (2026-07-12): a bare GROUP BY identifier is not
+        # guaranteed to be a real column -- SQLite (and standard SQL)
+        # allows GROUP BY to reference a SELECT-list ALIAS instead of
+        # repeating its expression, e.g. online_retail's "Monthly Sales
+        # Trend": SELECT strftime('%Y-%m', InvoiceDate) AS sales_month, ...
+        # GROUP BY sales_month. Returning "sales_month" directly here would
+        # produce a visual.json Category binding to a column that doesn't
+        # exist in the table (only InvoiceDate does) -- the DAX measure
+        # would still compile, but the chart's category axis would be
+        # broken when opened in Power BI Desktop. Chinook's equivalent KPI
+        # doesn't hit this (it repeats the full strftime(...) expression in
+        # its own GROUP BY rather than using the alias), which is why this
+        # went unnoticed until a real dataset that uses the alias form was
+        # tested. Resolve: if bare_name matches a SELECT-list alias whose
+        # own expression is itself a function call over a real column
+        # (e.g. "strftime('%Y-%m', InvoiceDate) AS sales_month"), return
+        # that inner column instead of the alias.
+        resolved = _resolve_group_by_alias(sql_query, bare_name)
+        return resolved if resolved is not None else bare_name
+
+    return None
+
+
+def _resolve_group_by_alias(sql_query: str, alias: str) -> str | None:
+    """
+    Looks for "<expr> AS <alias>" in the SELECT list, where <expr> is
+    itself a function call (e.g. strftime('%Y-%m', InvoiceDate)) -- if
+    found, returns the innermost real column name inside that function
+    call. Returns None if no such alias/expression pair is found (the
+    bare GROUP BY identifier was already a real column, or the alias's own
+    expression isn't a recognized function-call shape).
+    """
+    select_match = re.match(r"^SELECT\s+(?P<cols>.+?)\s+FROM\s", sql_query.strip(), re.IGNORECASE | re.DOTALL)
+    if not select_match:
+        return None
+
+    for item in _split_top_level_commas(select_match.group("cols")):
+        item = item.strip()
+        m = re.match(rf"^(?P<expr>.+?)\s+AS\s+{re.escape(alias)}\s*$", item, re.IGNORECASE | re.DOTALL)
+        if not m:
+            continue
+        inner_expr = m.group("expr").strip()
+        func_call = re.match(r"^\w+\s*\((?P<args>.+)\)\s*$", inner_expr)
+        if func_call:
+            idents = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", func_call.group("args"))
+            return idents[-1] if idents else None
+    return None
 
 
 # =====================================================================
@@ -780,9 +1085,23 @@ def run_pbir_compiler(state: AgentState) -> AgentState:
 
     visuals = _build_visuals(state.kpi_specs, measures_by_kpi, group_col_by_kpi, table_name)
 
-    if not visuals:
+    # ACCEPTANCE THRESHOLD (2026-07-12): per the project's own acceptance
+    # criteria ("at least two pages and at least four visuals"), a build
+    # producing fewer than MIN_VISUALS_REQUIRED translatable KPIs does not
+    # satisfy the deliverable, even though each individual KPI failure was
+    # already handled gracefully above (dropped, not hard-failed). This is
+    # a deliberate, mentor-agreed design: untranslatable SQL for ANY
+    # individual KPI is fine and expected -- it's dropped, not fatal -- but
+    # if too FEW KPIs survive translation overall, the resulting report
+    # would not meet the project's own bar for a working dashboard, so the
+    # whole build is rejected rather than silently shipping a thin report.
+    MIN_VISUALS_REQUIRED = 4
+
+    if len(visuals) < MIN_VISUALS_REQUIRED:
         state.errors.append(
-            "PBIR compiler: no KPIs produced a translatable measure; no visuals to build."
+            f"PBIR compiler: only {len(visuals)} KPI(s) produced a translatable "
+            f"measure (minimum {MIN_VISUALS_REQUIRED} required to meet the "
+            f"project's visual-count acceptance criterion); no .pbip built."
         )
         return state
 
