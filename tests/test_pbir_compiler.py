@@ -1,814 +1,499 @@
 """
-tests/test_pbir_compiler.py — integration tests for run_pbir_compiler +
-write_pbip against the Chinook and HR fixtures.
+tests/test_pbir_compiler.py -- the project's single unit/integration test
+suite for the PBIR Compiler (agent/models.py, agent/state.py,
+pbir/models/*, pbir/compiler/builder.py, pbir/compiler/serialiser.py).
 
-Per project convention, every fixture here is built as in-memory Pydantic
-objects (tests/fixtures_chinook.py, tests/fixtures_chinook_query_results.py,
-tests/fixtures_hr.py) -- this test module never calls json.load() on a
-profile/KPI file, mirroring how AgentState is actually handed between
-pipeline nodes in memory, never re-parsed from JSON on disk.
+FIXTURE STRATEGY (mentor note, 2026-07): unit tests must primarily verify
+this application's OWN behavior and stay independent of any particular
+external package/data implementation. Concretely here that means: no
+fixture in this file is built from a real dataset's KPI/profile JSON
+(chinook, HR, online_retail, or any future one). Every fixture below is a
+small, self-contained, INVENTED dataset -- synthetic column names, synthetic
+KPI SQL -- chosen only to exercise a specific shape or code path in this
+compiler. This keeps the suite from silently rotting every time an upstream
+KPI-generation run changes its SQL style or a dataset's KPI file gets
+regenerated (which has already happened once for real: see the SQL
+normalization bug fixes below), and it means every test failure here points
+at this application's own logic, never at "the fixture data changed."
 
-These tests assert everything structurally verifiable in pytest: folder
-tree shape, JSON validity, TMDL tab-indentation, cross-file ID consistency,
-and the acceptance criteria's countable properties (>=2 pages, >=4 visuals,
-measures present in the semantic model). "Opens in Power BI Desktop without
-errors" itself is NOT something pytest can assert -- that remains a manual
-verification step outside this suite.
+Everything lives in this one file by design -- the project convention is a
+single `test_pbir_compiler` suite, and there is no technical reason (pytest
+fixtures, classes, and plain data can all coexist in one module) that would
+force a split into separate fixture modules.
+
+Structural checks only: folder tree shape, JSON validity, TMDL
+tab-indentation, cross-file ID consistency, and the acceptance criteria's
+countable properties (>=2 pages, >=4 visuals, measures present). "Opens in
+Power BI Desktop without errors" is NOT something pytest can assert -- that
+remains a manual verification step outside this suite.
 """
+from __future__ import annotations
+
 import json
+import uuid
 
 import pytest
 
+from agent.models import ColumnProfile, DataProfile, KPISpec, QueryResult
 from agent.state import AgentState
-from agent.models import KPISpec, QueryResult
-from pbir.compiler.builder import run_pbir_compiler
-from pbir.compiler.serialiser import write_pbip
-
-from tests.fixtures_chinook import CHINOOK_PROFILE
-from tests.fixtures_chinook_query_results import CHINOOK_QUERY_RESULTS, CHINOOK_KPI_SPECS
-from tests.fixtures_hr import HR_PROFILE, HR_KPI_SPECS, HR_QUERY_RESULTS
-from tests.fixtures_online_retail import (
-    ONLINE_RETAIL_PROFILE,
-    ONLINE_RETAIL_KPI_SPECS,
-    ONLINE_RETAIL_QUERY_RESULTS,
-)
-
-
-@pytest.fixture
-def chinook_state() -> AgentState:
-    return AgentState(
-        input_path="data/raw/chinook.csv",
-        output_path="output/chinook_report",
-        data_profile=CHINOOK_PROFILE,
-        kpi_specs=CHINOOK_KPI_SPECS,
-        query_results=CHINOOK_QUERY_RESULTS,
-    )
-
-
-@pytest.fixture
-def compiled_chinook_project(chinook_state):
-    result_state = run_pbir_compiler(chinook_state)
-    assert result_state.errors == [], f"Builder produced errors: {result_state.errors}"
-    assert result_state.pbir_project is not None
-    return result_state.pbir_project
-
-
-@pytest.fixture
-def chinook_output_dir(compiled_chinook_project, tmp_path):
-    out = tmp_path / "chinook_report"
-    write_pbip(compiled_chinook_project, out)
-    return out
-
-
-@pytest.fixture
-def hr_state() -> AgentState:
-    return AgentState(
-        input_path="data/raw/hr.csv",
-        output_path="output/hr_report",
-        data_profile=HR_PROFILE,
-        kpi_specs=HR_KPI_SPECS,
-        query_results=HR_QUERY_RESULTS,
-    )
-
-
-@pytest.fixture
-def compiled_hr_project(hr_state):
-    result_state = run_pbir_compiler(hr_state)
-    assert result_state.errors == [], f"Builder produced errors: {result_state.errors}"
-    assert result_state.pbir_project is not None
-    return result_state.pbir_project
-
-
-@pytest.fixture
-def hr_output_dir(compiled_hr_project, tmp_path):
-    out = tmp_path / "hr_report"
-    write_pbip(compiled_hr_project, out)
-    return out
-
-
-@pytest.fixture
-def online_retail_state() -> AgentState:
-    return AgentState(
-        input_path="data/raw/online_retail.csv",
-        output_path="output/online_retail_report",
-        data_profile=ONLINE_RETAIL_PROFILE,
-        kpi_specs=ONLINE_RETAIL_KPI_SPECS,
-        query_results=ONLINE_RETAIL_QUERY_RESULTS,
-    )
-
-
-@pytest.fixture
-def compiled_online_retail_project(online_retail_state):
-    result_state = run_pbir_compiler(online_retail_state)
-    assert result_state.errors == [], f"Builder produced errors: {result_state.errors}"
-    assert result_state.pbir_project is not None
-    return result_state.pbir_project
-
-
-@pytest.fixture
-def online_retail_output_dir(compiled_online_retail_project, tmp_path):
-    out = tmp_path / "online_retail_report"
-    write_pbip(compiled_online_retail_project, out)
-    return out
-
-
-class TestBuilderChinook:
-    def test_produces_at_least_two_pages(self, compiled_chinook_project):
-        assert len(compiled_chinook_project.pages) >= 2
-
-    def test_produces_at_least_four_visuals(self, compiled_chinook_project):
-        total = sum(len(p.visuals) for p in compiled_chinook_project.pages)
-        assert total >= 4
-
-    def test_produces_at_least_one_measure_per_visual(self, compiled_chinook_project):
-        measure_names = {m.name for m in compiled_chinook_project.data_table.measures}
-        for page in compiled_chinook_project.pages:
-            for visual in page.visuals:
-                assert visual.measure_ref in measure_names
-
-    def test_id_columns_not_summed(self, compiled_chinook_project):
-        id_cols = [c for c in compiled_chinook_project.data_table.columns if c.name.endswith("Id")]
-        assert id_cols, "expected at least one Id column in Chinook Invoice table"
-        for col in id_cols:
-            assert col.summarize_by == "none"
-
-    def test_multi_aggregate_table_kpi_produces_multiple_measures(self, compiled_chinook_project):
-        """'Top Customers by Total Spend' has 2 aggregates -> 2 measures."""
-        names = [m.name for m in compiled_chinook_project.data_table.measures]
-        matching = [n for n in names if n.startswith("Top Customers by Total Spend")]
-        assert len(matching) == 2
-
-    def test_missing_data_profile_records_error_not_crash(self):
-        state = AgentState(kpi_specs=CHINOOK_KPI_SPECS, query_results=CHINOOK_QUERY_RESULTS)
-        result = run_pbir_compiler(state)
-        assert result.pbir_project is None
-        assert len(result.errors) == 1
-        assert "data_profile" in result.errors[0]
-
-    def test_report_name_derived_from_source_table(self, compiled_chinook_project):
-        assert compiled_chinook_project.report_name == "Invoice"
-
-
-class TestBuilderHR:
-    def test_produces_at_least_two_pages(self, compiled_hr_project):
-        assert len(compiled_hr_project.pages) >= 2
-
-    def test_produces_at_least_four_visuals(self, compiled_hr_project):
-        total = sum(len(p.visuals) for p in compiled_hr_project.pages)
-        assert total >= 4
-
-    def test_all_five_kpis_translate_successfully(self, compiled_hr_project):
-        """
-        hr_kpis.json has no sabotaged KPIs -- unlike Chinook, all 5 should
-        produce visuals (the two attrition-rate-by-X KPIs correctly extract
-        just the rate/percentage measure, not the accompanying COUNT(*)).
-        """
-        total = sum(len(p.visuals) for p in compiled_hr_project.pages)
-        assert total == 5
-
-    def test_percentage_measures_use_percentage_format(self, compiled_hr_project):
-        pct_measure_names = {"Overall Attrition Rate", "Attrition Rate by Job Role", "Attrition Risk by Tenure"}
-        pct_measures = [m for m in compiled_hr_project.data_table.measures if m.name in pct_measure_names]
-        assert len(pct_measures) == 3
-        for m in pct_measures:
-            assert m.format_string == "0.00\\%"
-            assert "COUNTROWS" in m.expression
-            assert "FILTER" in m.expression
-
-    def test_low_cardinality_rating_columns_not_summed(self, compiled_hr_project):
-        """JobSatisfaction/WorkLifeBalance/EnvironmentSatisfaction are 1-4
-        ordinal ratings (distinct_count=4) -- must not default to sum."""
-        rating_cols = [
-            c for c in compiled_hr_project.data_table.columns
-            if c.name in ("JobSatisfaction", "WorkLifeBalance", "EnvironmentSatisfaction")
-        ]
-        assert len(rating_cols) == 3
-        for col in rating_cols:
-            assert col.summarize_by == "none"
-
-    def test_genuinely_additive_column_still_sums(self, compiled_hr_project):
-        income_col = [c for c in compiled_hr_project.data_table.columns if c.name == "MonthlyIncome"][0]
-        assert income_col.summarize_by == "sum"
-
-    def test_table_kpi_with_three_measures(self, compiled_hr_project):
-        """'Employee Sentiment Profile by Job Role' selects 3 AVG columns."""
-        names = [m.name for m in compiled_hr_project.data_table.measures]
-        matching = [n for n in names if n.startswith("Employee Sentiment Profile by Job Role")]
-        assert len(matching) == 3
-
-    def test_report_name_derived_from_csv_filename_when_source_table_none(self, compiled_hr_project):
-        """HR's source_table is None (CSV input) -- falls back to filename stem."""
-        assert compiled_hr_project.report_name == "hr"
-
-
-class TestBuilderOnlineRetail:
-    """
-    SCOPE EXTENSION (2026-07-12): online_retail requires SQL->DAX shapes
-    beyond the original basic-DAX set to meet the project's own "all three
-    dataset reports open successfully" acceptance criterion --
-    SUM/AVG(ColA * ColB) -> SUMX/AVERAGEX, COUNT(DISTINCT col) ->
-    DISTINCTCOUNT, and WHERE -> CALCULATE(...) filtering. All still basic,
-    well-documented DAX; this is a small, deliberate widening of the
-    original SUM/AVERAGE/COUNT/DIVIDE/IF set, not exotic scope.
-    """
-
-    def test_produces_at_least_two_pages(self, compiled_online_retail_project):
-        assert len(compiled_online_retail_project.pages) >= 2
-
-    def test_meets_minimum_visual_acceptance_threshold(self, compiled_online_retail_project):
-        total = sum(len(p.visuals) for p in compiled_online_retail_project.pages)
-        assert total >= 4
-
-    def test_all_five_kpis_translate_successfully(self, compiled_online_retail_project):
-        """
-        All 5 KPIs (post-Reflector-fix) should now produce visuals: 2 cards
-        with WHERE-filtered SUMX/DISTINCTCOUNT, 1 barChart, 1 lineChart
-        (with GROUP-BY-alias resolution), 1 table with 2 WHERE-filtered
-        sibling measures.
-        """
-        total = sum(len(p.visuals) for p in compiled_online_retail_project.pages)
-        assert total == 5
-
-    def test_total_revenue_uses_sumx_wrapped_in_calculate(self, compiled_online_retail_project):
-        measures = [m for m in compiled_online_retail_project.data_table.measures if m.name == "Total Revenue"]
-        assert len(measures) == 1
-        expr = measures[0].expression
-        assert expr == "CALCULATE(SUMX('data', 'data'[Quantity] * 'data'[UnitPrice]), 'data'[Quantity] > 0)"
-
-    def test_aov_uses_distinctcount_and_sumx_both_filtered(self, compiled_online_retail_project):
-        measures = [m for m in compiled_online_retail_project.data_table.measures if m.name == "Average Order Value (AOV)"]
-        assert len(measures) == 1
-        expr = measures[0].expression
-        assert expr == (
-            "CALCULATE(DIVIDE(SUMX('data', 'data'[Quantity] * 'data'[UnitPrice]), "
-            "DISTINCTCOUNT('data'[InvoiceNo])), 'data'[Quantity] > 0)"
-        )
-
-    def test_monthly_trend_resolves_group_by_alias_to_real_column(self, compiled_online_retail_project):
-        """
-        REGRESSION GUARD: 'Monthly Sales Trend' GROUPs BY its own SELECT
-        alias (sales_month), not the real underlying column (InvoiceDate).
-        A prior version returned the bare alias directly, which would have
-        produced a visual.json Category binding to a nonexistent field.
-        """
-        for page in compiled_online_retail_project.pages:
-            for visual in page.visuals:
-                if visual.chart_type == "lineChart":
-                    assert visual.category_ref == "InvoiceDate"
-                    return
-        pytest.fail("no lineChart visual found in compiled Online Retail project")
-
-    def test_top_products_table_has_two_calculate_wrapped_measures(self, compiled_online_retail_project):
-        names_and_exprs = {
-            m.name: m.expression for m in compiled_online_retail_project.data_table.measures
-            if m.name.startswith("Top 10 Products by Quantity Sold")
-        }
-        assert len(names_and_exprs) == 2
-        for expr in names_and_exprs.values():
-            assert expr.startswith("CALCULATE(")
-            assert "'data'[Quantity] > 0" in expr
-
-    def test_top_products_visual_groups_by_first_column_of_multi_column_group_by(self, compiled_online_retail_project):
-        """GROUP BY StockCode, Description -> category_ref is StockCode (first column)."""
-        for page in compiled_online_retail_project.pages:
-            for visual in page.visuals:
-                if visual.chart_type == "table":
-                    assert visual.category_ref == "StockCode"
-                    return
-        pytest.fail("no table visual found in compiled Online Retail project")
-
-
-class TestMinimumVisualThreshold:
-    """
-    Directly exercises the MIN_VISUALS_REQUIRED acceptance gate in
-    run_pbir_compiler: individual untranslatable KPIs are dropped (not
-    fatal), but the whole build is rejected if too few KPIs survive
-    translation overall to meet the project's own visual-count criterion.
-    """
-
-    def test_build_rejected_when_fewer_than_four_visuals_survive(self):
-        from agent.models import DataProfile, ColumnProfile
-        from pbir.compiler.builder import run_pbir_compiler
-
-        profile = DataProfile(
-            source_path="data/raw/tiny.csv",
-            source_table=None,
-            row_count=10,
-            column_count=1,
-            is_single_row=False,
-            columns={"Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10)},
-        )
-        # Only 2 translatable KPIs -- below MIN_VISUALS_REQUIRED (4).
-        kpi_specs = [
-            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
-        ]
-        query_results = [
-            QueryResult(kpi_name="Total", sql_query=kpi_specs[0].sql_query, status="pass", row_count=1, columns=["Amount"], result_rows=[]),
-            QueryResult(kpi_name="Average", sql_query=kpi_specs[1].sql_query, status="pass", row_count=1, columns=["Amount"], result_rows=[]),
-        ]
-        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
-        result = run_pbir_compiler(state)
-
-        assert result.pbir_project is None
-        assert any("only 2 KPI(s)" in e for e in result.errors)
-
-    def test_build_accepted_when_exactly_four_visuals_survive(self):
-        from agent.models import DataProfile, ColumnProfile
-        from pbir.compiler.builder import run_pbir_compiler
-
-        profile = DataProfile(
-            source_path="data/raw/tiny.csv",
-            source_table=None,
-            row_count=10,
-            column_count=2,
-            is_single_row=False,
-            columns={
-                "Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
-                "Category": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
-            },
-        )
-        kpi_specs = [
-            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="By Category", description="d", sql_query="SELECT Category, SUM(Amount) AS Amount FROM data GROUP BY Category", chart_type="barChart", reasoning="r"),
-        ]
-        query_results = [
-            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
-            for k in kpi_specs
-        ]
-        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
-        result = run_pbir_compiler(state)
-
-        assert result.errors == []
-        assert result.pbir_project is not None
-        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
-
-    def test_individual_untranslatable_kpi_is_dropped_not_fatal(self):
-        """
-        A mix where SOME KPIs fail translation but enough survive to clear
-        the threshold: the failing KPI is dropped and recorded in
-        state.errors, without aborting the whole build.
-        """
-        from agent.models import DataProfile, ColumnProfile
-        from pbir.compiler.builder import run_pbir_compiler
-
-        profile = DataProfile(
-            source_path="data/raw/tiny.csv",
-            source_table=None,
-            row_count=10,
-            column_count=2,
-            is_single_row=False,
-            columns={
-                "Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
-                "Category": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
-            },
-        )
-        kpi_specs = [
-            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
-            KPISpec(name="By Category", description="d", sql_query="SELECT Category, SUM(Amount) AS Amount FROM data GROUP BY Category", chart_type="barChart", reasoning="r"),
-            # This one is genuinely untranslatable (addition, not a
-            # recognized shape) -- should be dropped, not fatal, since 4
-            # others still survive.
-            KPISpec(name="Bad KPI", description="d", sql_query="SELECT SUM(Amount + 1) AS Amount FROM data", chart_type="card", reasoning="r"),
-        ]
-        query_results = [
-            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
-            for k in kpi_specs
-        ]
-        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
-        result = run_pbir_compiler(state)
-
-        assert result.pbir_project is not None
-        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
-        assert any("Bad KPI" in e for e in result.errors)
-
-
-class TestSerialiserFolderStructure:
-    def test_root_pointer_file_exists(self, chinook_output_dir, compiled_chinook_project):
-        pbip_file = chinook_output_dir / f"{compiled_chinook_project.report_name}.pbip"
-        assert pbip_file.exists()
-
-    def test_report_and_semantic_model_folders_exist(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        assert (chinook_output_dir / f"{name}.Report").is_dir()
-        assert (chinook_output_dir / f"{name}.SemanticModel").is_dir()
-
-    def test_platform_files_exist_both_sides(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        assert (chinook_output_dir / f"{name}.Report" / ".platform").exists()
-        assert (chinook_output_dir / f"{name}.SemanticModel" / ".platform").exists()
-
-    def test_definition_pbir_links_to_semantic_model(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        pbir = json.loads((chinook_output_dir / f"{name}.Report" / "definition.pbir").read_text())
-        assert pbir["datasetReference"]["byPath"]["path"] == f"../{name}.SemanticModel"
-
-    def test_pages_json_lists_every_page_folder(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        pages_json = json.loads(
-            (chinook_output_dir / f"{name}.Report" / "definition" / "pages" / "pages.json").read_text()
-        )
-        for page_id in pages_json["pageOrder"]:
-            assert (chinook_output_dir / f"{name}.Report" / "definition" / "pages" / page_id / "page.json").exists()
-
-    def test_every_visual_json_exists_and_matches_page(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        for page in compiled_chinook_project.pages:
-            page_dir = chinook_output_dir / f"{name}.Report" / "definition" / "pages" / page.page_id
-            for visual in page.visuals:
-                visual_file = page_dir / "visuals" / visual.visual_id / "visual.json"
-                assert visual_file.exists(), f"missing {visual_file}"
-
-    def test_table_tmdl_exists(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        table_file = (
-            chinook_output_dir / f"{name}.SemanticModel" / "definition" / "tables"
-            / f"{compiled_chinook_project.data_table.name}.tmdl"
-        )
-        assert table_file.exists()
-
-    def test_relationships_tmdl_never_written(self, chinook_output_dir, hr_output_dir):
-        """Relationships are permanently out of scope (mentor sign-off) --
-        must never appear in output, for either dataset."""
-        assert not list(chinook_output_dir.rglob("relationships.tmdl"))
-        assert not list(hr_output_dir.rglob("relationships.tmdl"))
-
-    def test_no_sqlite_or_date_table_files_ever_written(self, chinook_output_dir, hr_output_dir):
-        """SQLite M-source and auto-date-tables are permanently out of
-        scope (mentor sign-off: CSV-only, no auto-generated date tables)."""
-        for out_dir in (chinook_output_dir, hr_output_dir):
-            assert not list(out_dir.rglob("LocalDateTable_*.tmdl"))
-            assert not list(out_dir.rglob("DateTableTemplate_*.tmdl"))
-            for tmdl_file in out_dir.rglob("*.tmdl"):
-                assert "Sqlite.Database" not in tmdl_file.read_text()
-
-    def test_excluded_files_never_written(self, chinook_output_dir):
-        """§2.15: these should never appear in compiler output."""
-        forbidden = [
-            "**/.pbi/localSettings.json",
-            "**/.pbi/cache.abf",
-            "**/.pbi/editorSettings.json",
-            "**/diagramLayout.json",
-            "**/cultures/en-US.tmdl",
-        ]
-        for pattern in forbidden:
-            matches = list(chinook_output_dir.glob(pattern))
-            assert matches == [], f"unexpected excluded file(s) written: {matches}"
-
-
-class TestJSONValidity:
-    def test_every_json_file_parses_chinook(self, chinook_output_dir):
-        json_files = list(chinook_output_dir.rglob("*.json"))
-        assert len(json_files) > 0
-        for f in json_files:
-            json.loads(f.read_text())
-
-    def test_every_json_file_parses_hr(self, hr_output_dir):
-        json_files = list(hr_output_dir.rglob("*.json"))
-        assert len(json_files) > 0
-        for f in json_files:
-            json.loads(f.read_text())
-
-    def test_tableEx_has_no_rows_role(self, chinook_output_dir, compiled_chinook_project):
-        """The #1 way to break a tableEx visual: copying pivotTable's Rows role."""
-        name = compiled_chinook_project.report_name
-        for page in compiled_chinook_project.pages:
-            for visual in page.visuals:
-                if visual.chart_type != "table":
-                    continue
-                visual_file = (
-                    chinook_output_dir / f"{name}.Report" / "definition" / "pages"
-                    / page.page_id / "visuals" / visual.visual_id / "visual.json"
-                )
-                data = json.loads(visual_file.read_text())
-                query_state = data["visual"]["query"]["queryState"]
-                assert "Rows" not in query_state
-                assert "Values" in query_state
-
-    def test_card_visual_has_data_role(self, chinook_output_dir, compiled_chinook_project):
-        name = compiled_chinook_project.report_name
-        for page in compiled_chinook_project.pages:
-            for visual in page.visuals:
-                if visual.chart_type != "card":
-                    continue
-                visual_file = (
-                    chinook_output_dir / f"{name}.Report" / "definition" / "pages"
-                    / page.page_id / "visuals" / visual.visual_id / "visual.json"
-                )
-                data = json.loads(visual_file.read_text())
-                assert "Data" in data["visual"]["query"]["queryState"]
-                assert data["visual"]["visualType"] == "cardVisual"
-
-    def test_hr_table_visual_has_four_values_projections(self, hr_output_dir, compiled_hr_project):
-        name = compiled_hr_project.report_name
-        for page in compiled_hr_project.pages:
-            for visual in page.visuals:
-                if visual.chart_type != "table":
-                    continue
-                visual_file = (
-                    hr_output_dir / f"{name}.Report" / "definition" / "pages"
-                    / page.page_id / "visuals" / visual.visual_id / "visual.json"
-                )
-                data = json.loads(visual_file.read_text())
-                projections = data["visual"]["query"]["queryState"]["Values"]["projections"]
-                # 1 category column (JobRole) + 3 measures = 4 projections
-                assert len(projections) == 4
-
-
-class TestTMDLFormatting:
-    def test_table_tmdl_uses_tabs_not_leading_spaces(self, chinook_output_dir, compiled_chinook_project):
-        """
-        pbir_reference.md explicitly flags space-indentation as lint-worthy.
-        Top-level declarations (table/measure/column/partition) are
-        correctly unindented; the M-script body uses spaces internally for
-        its own step lines (matches the reference sample's own convention),
-        which is expected. This test only checks that nothing uses a
-        literal leading space where a TAB was expected.
-        """
-        name = compiled_chinook_project.report_name
-        table_file = (
-            chinook_output_dir / f"{name}.SemanticModel" / "definition" / "tables"
-            / f"{compiled_chinook_project.data_table.name}.tmdl"
-        )
-        text = table_file.read_text()
-        for line in text.split("\n"):
-            if line.startswith(" "):
-                pytest.fail(f"Line starts with a literal space, not a tab: {line!r}")
-
-    def test_measure_lineage_tags_are_valid_uuids(self, compiled_chinook_project):
-        import uuid
-        for m in compiled_chinook_project.data_table.measures:
-            uuid.UUID(m.lineage_tag)  # raises ValueError if not a valid UUID
-
-    def test_m_query_uses_csv_document_only(self, compiled_hr_project, compiled_chinook_project):
-        """CSV-only scope: every generated M query must use Csv.Document."""
-        from pbir.compiler.serialiser import _build_table_tmdl
-        for project in (compiled_hr_project, compiled_chinook_project):
-            tmdl_text = _build_table_tmdl(project.data_table)
-            assert "Csv.Document" in tmdl_text
-            assert "Sqlite" not in tmdl_text
-            assert "Odbc" not in tmdl_text
-
-    def test_m_query_never_doubles_windows_path_backslashes(self):
-        """
-        REGRESSION GUARD: M's only string-escape rule is doubling the quote
-        character; backslash has no special meaning and must never be
-        doubled. A prior version of _build_m_partition_source did
-        csv_path.replace("\\\\", "\\\\\\\\"), which silently broke every
-        Windows absolute path (Csv.Document would try to open a path with
-        doubled separators, matching nothing on disk) -- this was the root
-        cause of "some tables have incomplete or no data" in Power BI
-        Desktop, with no other error surfaced.
-        """
-        from pbir.compiler.serialiser import _build_m_partition_source
-        from pbir.models.column import Column
-
-        windows_path = r"C:\Users\ingex\OneDrive\Documents\data\raw\hr.csv"
-        cols = [Column(name="Age", data_type="int64", source_column="Age")]
-        source = _build_m_partition_source(windows_path, cols)
-
-        assert windows_path in source, "the exact single-backslash path must appear verbatim"
-        assert "\\\\" not in source, "no doubled backslashes should ever appear in the M source"
-
-    def test_filter_names_never_collide_on_long_visual_ids(self):
-        """
-        REGRESSION GUARD: a prior filter-naming scheme truncated the
-        CONCATENATED (visual_id + field_name) string to a fixed cap before
-        the differentiating suffix was applied, so once visual_id alone
-        approached that cap, multiple filters on the same visual collapsed
-        onto an identical name. Confirmed against a real compiled report:
-        a 4-field tableEx produced 4 filters all sharing one 40-char name.
-        Desktop's real constraint is 1-50 characters (from its own schema
-        validation error) -- not the 40 originally assumed.
-        """
-        from pbir.compiler.serialiser import _local_filter_id
-
-        long_visual_id = "viz_employee_sentiment_profile_by_job_role_table"
-        names = [_local_filter_id(long_visual_id, i) for i in range(4)]
-
-        assert len(set(names)) == 4, f"filter names collided: {names}"
-        for name in names:
-            assert 1 <= len(name) <= 50, f"filter name outside Desktop's 1-50 char limit: {name!r}"
-        assert all(name.endswith(f"_{i}") for i, name in enumerate(names)), (
-            "the differentiating _<idx> suffix must never be truncated away"
-        )
-
-    def test_common_filter_id_matches_serialiser_fix(self):
-        """
-        pbir/models/common.py's filter_id() had the identical truncation
-        bug as serialiser.py's _local_filter_id() (same root cause, two
-        call sites) -- fixed at the same time, same 50-char real
-        constraint, same "never truncate the differentiator" rule. This
-        guards common.py's copy specifically, since serialiser.py no
-        longer calls it directly but other code may still reach for it.
-        """
-        from pbir.models.common import filter_id
-
-        long_visual_id = "viz_average_monthly_income_by_department_barchart"
-        f0 = filter_id(long_visual_id, "MonthlyIncome", 0)
-        f1 = filter_id(long_visual_id, "Department", 1)
-
-        assert f0 != f1
-        assert 1 <= len(f0) <= 50
-        assert 1 <= len(f1) <= 50
-        assert f0.endswith("_0")
-        assert f1.endswith("_1")
-
-
-class TestSQLShapesFromRealFixtures:
-    """Confirms the SQL->DAX translator correctly handles the real SQL
-    shapes present in both hr_kpis.json and chinook_kpis.json (post-fix)."""
-
-    def test_conditional_percentage_kpi_produces_divide_countrows(self, compiled_hr_project):
-        overall_attrition = [m for m in compiled_hr_project.data_table.measures if m.name == "Overall Attrition Rate"]
-        assert len(overall_attrition) == 1
-        expr = overall_attrition[0].expression
-        assert expr.startswith("ROUND(DIVIDE(COUNTROWS(FILTER(")
-        assert "'data'[Attrition] = \"Yes\"" in expr
-
-    def test_round_wrapped_avg_kpi(self, compiled_hr_project):
-        income = [m for m in compiled_hr_project.data_table.measures if m.name == "Average Monthly Income by Department"]
-        assert len(income) == 1
-        assert income[0].expression == "ROUND(AVERAGE('data'[MonthlyIncome]), 2)"
-
-    def test_chart_kpi_with_extra_count_star_extracts_only_the_rate(self, compiled_hr_project):
-        """
-        'Attrition Rate by Job Role' selects both COUNT(*) AS total_employees
-        and the rate expression -- the visual should bind to the rate only.
-        """
-        by_role = [m for m in compiled_hr_project.data_table.measures if m.name == "Attrition Rate by Job Role"]
-        assert len(by_role) == 1
-        assert "DIVIDE" in by_role[0].expression
-
-
-# =====================================================================
-# Unit tests for the SQL -> DAX translator
-#
-# translate/translate_multi/extract_group_by_column/SQLToDaxError live
-# in pbir/compiler/builder.py.
-# =====================================================================
-
 from pbir.compiler.builder import (
+    SQLToDaxError,
+    extract_group_by_column,
+    group_into_pages,
+    layout_page,
+    run_pbir_compiler,
     translate,
     translate_multi,
-    extract_group_by_column,
-    SQLToDaxError,
+)
+from pbir.compiler.serialiser import (
+    _build_m_partition_source,
+    _build_table_tmdl,
+    _local_filter_id,
+    write_pbip,
+)
+from pbir.models.column import Column
+from pbir.models.common import filter_id
+from pbir.models.dtypes import dax_type_to_m_type, map_dtype
+from pbir.models.visual import Visual
+
+
+# =====================================================================
+# Synthetic, dataset-agnostic fixture for the full-pipeline / serialiser
+# tests below. Invented business domain ("regional activity tracking"),
+# invented column names -- deliberately not sourced from, or matching,
+# any real project dataset. Chosen to cover, in one small profile:
+#   - a currency-shaped numeric column (Amount)          -> is_currency
+#   - a row-unique Id-suffixed column (RecordId)          -> summarizeBy=none
+#   - a low-cardinality integer "rating" column (PriorityLevel, 5 values)
+#                                                          -> summarizeBy=none
+#   - a plain low-cardinality string category (Region)
+#   - a string-typed date-like column (SignupDate)        -> the real
+#     "profiled as string, not datetime" edge case, generically
+#   - a two-valued flag column (StatusFlag)                -> CASE WHEN
+# and, across its 6 KPIs, all four chart types plus both SQL->DAX bug
+# patterns fixed in this session (quoted identifiers; a ratio/percentage
+# wrapped in redundant outer parens alongside co-selected raw counts).
+# =====================================================================
+
+SYNTHETIC_PROFILE = DataProfile(
+    source_path="data/raw/synthetic_activity.csv",
+    source_table=None,
+    row_count=500,
+    column_count=6,
+    is_single_row=False,
+    columns={
+        "RecordId": ColumnProfile(inferred_dtype="integer", null_count=0, null_rate=0.0, distinct_count=500),
+        "Region": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=4),
+        "PriorityLevel": ColumnProfile(inferred_dtype="integer", null_count=0, null_rate=0.0, distinct_count=5),
+        "Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=480),
+        "SignupDate": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=310),
+        "StatusFlag": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=2),
+    },
 )
 
+SYNTHETIC_KPI_SPECS = [
+    KPISpec(
+        name="Total Amount",
+        description="Sum of Amount across all records.",
+        sql_query="SELECT SUM(Amount) AS total FROM data",
+        chart_type="card",
+        reasoning="Single summary metric.",
+    ),
+    KPISpec(
+        name="Amount by Region",
+        description="Sum of Amount grouped by Region, using double-quoted identifiers.",
+        sql_query='SELECT "Region", SUM("Amount") AS total FROM data GROUP BY "Region" ORDER BY total DESC',
+        chart_type="barChart",
+        # REGRESSION COVERAGE (bug 7.1a): ANSI double-quoted identifiers,
+        # matching the quoting style a KPI-generation run has actually
+        # produced for a real dataset -- exercised here through the full
+        # pipeline (builder AND category_ref extraction), not just the
+        # isolated translate() unit tests further down.
+        reasoning="Regional comparison; deliberately double-quoted SQL identifiers.",
+    ),
+    KPISpec(
+        name="Active Rate by Region",
+        description="Percentage of Active records per Region, alongside supporting counts.",
+        sql_query=(
+            "SELECT Region, COUNT(*) AS total_records, "
+            "SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) AS active_count, "
+            "(SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS active_rate "
+            "FROM data GROUP BY Region ORDER BY active_rate DESC"
+        ),
+        chart_type="barChart",
+        # REGRESSION COVERAGE (bug 7.1b, GROUP BY variant): a percentage
+        # expression wrapped in redundant outer parens, co-selected
+        # alongside TWO other non-ratio aggregates (COUNT(*) and a bare
+        # SUM(CASE...)) in the same GROUP BY query -- the exact shape that
+        # silently dropped the rate expression before the fix.
+        reasoning="Rate is the intended chart metric; counts are supporting context.",
+    ),
+    KPISpec(
+        name="Overall Active Rate",
+        description="Percentage of Active records overall.",
+        sql_query=(
+            "SELECT (SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) "
+            "AS overall_rate FROM data"
+        ),
+        chart_type="card",
+        # REGRESSION COVERAGE (bug 7.1b, no-GROUP-BY variant): the same
+        # wrapped-ratio shape reaching _translate_core directly.
+        reasoning="Single summary percentage metric.",
+    ),
+    KPISpec(
+        name="Signup Trend",
+        description="Record count by signup month.",
+        sql_query="SELECT strftime('%Y-%m', SignupDate) AS month, COUNT(*) AS n FROM data GROUP BY month ORDER BY month",
+        chart_type="lineChart",
+        reasoning="Time trend; GROUP BY uses the SELECT alias, not the real column.",
+    ),
+    KPISpec(
+        name="Priority Breakdown",
+        description="Record count and average Amount per PriorityLevel.",
+        sql_query="SELECT PriorityLevel, COUNT(*) AS n, AVG(Amount) AS avg_amount FROM data GROUP BY PriorityLevel",
+        chart_type="table",
+        reasoning="Two independent aggregates -- a genuine multi-measure table KPI.",
+    ),
+]
 
-class TestSingleAggregateTranslation:
+SYNTHETIC_QUERY_RESULTS = [
+    QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+    for k in SYNTHETIC_KPI_SPECS
+]
+
+
+@pytest.fixture
+def synthetic_state() -> AgentState:
+    return AgentState(
+        input_path=SYNTHETIC_PROFILE.source_path,
+        output_path="output/synthetic_report",
+        data_profile=SYNTHETIC_PROFILE,
+        kpi_specs=SYNTHETIC_KPI_SPECS,
+        query_results=SYNTHETIC_QUERY_RESULTS,
+    )
+
+
+@pytest.fixture
+def compiled_synthetic_project(synthetic_state):
+    result_state = run_pbir_compiler(synthetic_state)
+    assert result_state.errors == [], f"Builder produced errors: {result_state.errors}"
+    assert result_state.pbir_project is not None
+    return result_state.pbir_project
+
+
+@pytest.fixture
+def patched_theme_assets(tmp_path, monkeypatch):
+    """
+    write_pbip() copies 2 real Microsoft-shipped theme JSON files from
+    serialiser._THEME_ASSETS_DIR (pbir_reference.md SS2.15: vendor them as
+    static assets, never regenerate). This suite does not vendor the actual
+    byte-verbatim Microsoft files -- that's an external asset to bundle at
+    deploy time, not application logic to unit-test -- so tests substitute
+    minimal placeholder JSON files in a temp dir for the duration of the
+    test, only so write_pbip's file-copy step has something real to copy.
+    This does not test theme file CONTENT, only that write_pbip performs
+    the copy to the right destination path.
+    """
+    from pbir.compiler import serialiser
+
+    assets_dir = tmp_path / "theme_assets"
+    (assets_dir / "BaseThemes").mkdir(parents=True)
+    (assets_dir / "BuiltInThemes").mkdir(parents=True)
+    (assets_dir / "BaseThemes" / f"{serialiser._BASE_THEME_NAME}.json").write_text("{}")
+    (assets_dir / "BuiltInThemes" / f"{serialiser._CUSTOM_THEME_NAME}.json").write_text("{}")
+    # _theme_assets() reads _THEME_ASSETS_DIR as a module global at call
+    # time (not a frozen default), so patching it here is picked up by
+    # write_pbip's internal call without needing to touch write_pbip itself.
+    monkeypatch.setattr(serialiser, "_THEME_ASSETS_DIR", assets_dir)
+    return assets_dir
+
+
+@pytest.fixture
+def synthetic_output_dir(compiled_synthetic_project, patched_theme_assets, tmp_path):
+    out = tmp_path / "synthetic_report_out"
+    write_pbip(compiled_synthetic_project, out)
+    return out
+
+
+# =====================================================================
+# Unit tests: SQL -> DAX translator (translate / translate_multi /
+# extract_group_by_column / SQLToDaxError, in pbir/compiler/builder.py).
+# Every SQL string below is hand-written for the shape it targets, using
+# invented column names -- these do not exercise any dataset fixture.
+# =====================================================================
+
+
+class TestSQLToDaxSingleAggregate:
     def test_sum_card(self):
-        t = translate("SELECT SUM(Total) AS Total FROM data", "data")
-        assert t.expression == "SUM('data'[Total])"
+        t = translate("SELECT SUM(Amount) AS total FROM data", "data")
+        assert t.expression == "SUM('data'[Amount])"
         assert t.aggregation == "SUM"
-        assert t.source_column == "Total"
+        assert t.source_column == "Amount"
 
     def test_avg(self):
-        t = translate("SELECT AVG(Rating) AS Rating FROM data", "data")
-        assert t.expression == "AVERAGE('data'[Rating])"
+        t = translate("SELECT AVG(UnitCost) AS avg_cost FROM data", "data")
+        assert t.expression == "AVERAGE('data'[UnitCost])"
         assert t.aggregation == "AVERAGE"
 
     def test_count(self):
-        t = translate("SELECT COUNT(InvoiceId) AS InvoiceId FROM data", "data")
-        assert t.expression == "COUNT('data'[InvoiceId])"
+        t = translate("SELECT COUNT(RecordId) AS n FROM data", "data")
+        assert t.expression == "COUNT('data'[RecordId])"
         assert t.aggregation == "COUNT"
 
     def test_currency_hint_detected(self):
-        t = translate("SELECT SUM(Total) AS Total FROM data", "data")
+        t = translate("SELECT SUM(Amount) AS total FROM data", "data")
         assert t.is_currency is True
 
     def test_non_currency_column(self):
-        t = translate("SELECT COUNT(InvoiceId) AS InvoiceId FROM data", "data")
+        t = translate("SELECT COUNT(RecordId) AS n FROM data", "data")
         assert t.is_currency is False
 
     def test_grouped_chart_query(self):
-        t = translate(
-            "SELECT BillingCountry, SUM(Total) AS Total FROM data "
-            "GROUP BY BillingCountry ORDER BY Total DESC",
-            "data",
-        )
-        assert t.expression == "SUM('data'[Total])"
+        t = translate("SELECT Region, SUM(Amount) AS total FROM data GROUP BY Region ORDER BY total DESC", "data")
+        assert t.expression == "SUM('data'[Amount])"
 
     def test_strftime_grouped_query(self):
         t = translate(
-            "SELECT strftime('%Y-%m', InvoiceDate) AS InvoiceDate, SUM(Total) AS Total "
-            "FROM data GROUP BY strftime('%Y-%m', InvoiceDate) ORDER BY InvoiceDate ASC",
+            "SELECT strftime('%Y-%m', SignupDate) AS month, SUM(Amount) AS total "
+            "FROM data GROUP BY month ORDER BY month",
             "data",
         )
-        assert t.expression == "SUM('data'[Total])"
+        assert t.expression == "SUM('data'[Amount])"
 
 
-class TestRatioTranslation:
+class TestSQLToDaxRatio:
     def test_divide_ratio(self):
-        t = translate("SELECT SUM(Total) / COUNT(InvoiceId) AS Total FROM data", "data")
-        assert t.expression == "DIVIDE(SUM('data'[Total]), COUNT('data'[InvoiceId]))"
+        t = translate("SELECT SUM(Amount) / COUNT(RecordId) AS ratio FROM data", "data")
+        assert t.expression == "DIVIDE(SUM('data'[Amount]), COUNT('data'[RecordId]))"
         assert t.aggregation == "DIVIDE"
 
 
-class TestRoundAndCountStar:
+class TestSQLToDaxRoundAndCountStar:
     def test_round_wraps_single_aggregate(self):
-        t = translate("SELECT ROUND(AVG(MonthlyIncome), 2) AS avg_income FROM data", "data")
-        assert t.expression == "ROUND(AVERAGE('data'[MonthlyIncome]), 2)"
+        t = translate("SELECT ROUND(AVG(UnitCost), 2) AS avg_cost FROM data", "data")
+        assert t.expression == "ROUND(AVERAGE('data'[UnitCost]), 2)"
         assert t.aggregation == "ROUND"
 
     def test_round_wraps_grouped_aggregate(self):
         t = translate(
-            "SELECT Department, ROUND(AVG(MonthlyIncome), 2) AS avg_monthly_income "
-            "FROM data GROUP BY Department ORDER BY avg_monthly_income DESC",
+            "SELECT Region, ROUND(AVG(UnitCost), 2) AS avg_cost FROM data GROUP BY Region ORDER BY avg_cost DESC",
             "data",
         )
-        assert t.expression == "ROUND(AVERAGE('data'[MonthlyIncome]), 2)"
+        assert t.expression == "ROUND(AVERAGE('data'[UnitCost]), 2)"
 
     def test_count_star_card(self):
         t = translate("SELECT COUNT(*) AS n FROM data", "data")
         assert t.expression == "COUNTROWS('data')"
         assert t.aggregation == "COUNTROWS"
 
-    def test_conditional_percentage_card(self):
+    def test_round_wrapped_conditional_percentage_card(self):
+        """
+        Pre-existing shape (unaffected by the 7.1b fix below, which only
+        adds handling for a BARE-paren wrap with no ROUND(...) call at
+        all): a percentage explicitly wrapped in ROUND(...) already worked
+        before this session's fixes, since _ROUND_WRAPPER_RE's own inner
+        capture already unwraps it regardless of what's inside. Kept as a
+        regression guard that the new _strip_enclosing_parens step
+        (unconditionally run at the top of _translate_core) does not
+        change this pre-existing, already-correct behavior.
+        """
         t = translate(
-            "SELECT ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) "
-            "* 100.0 / COUNT(*), 2) AS attrition_rate_pct FROM data",
+            "SELECT ROUND(SUM(CASE WHEN StatusFlag = 'Active' THEN 1.0 ELSE 0.0 END) "
+            "* 100.0 / COUNT(*), 2) AS rate FROM data",
             "data",
         )
         assert t.expression == (
-            "ROUND(DIVIDE(COUNTROWS(FILTER('data', 'data'[Attrition] = \"Yes\")), "
+            "ROUND(DIVIDE(COUNTROWS(FILTER('data', 'data'[StatusFlag] = \"Active\")), "
             "COUNTROWS('data')) * 100, 2)"
         )
         assert t.is_percentage is True
 
-    def test_conditional_percentage_alongside_count_star_in_group_by(self):
-        """
-        The real HR shape: COUNT(*) AS total_employees alongside a
-        ROUND(...ratio...) AS attrition_rate_pct in the same GROUP BY query
-        -- must extract just the rate, not reject as multi-aggregate.
-        """
+    def test_round_wrapped_conditional_percentage_alongside_count_star_in_group_by(self):
+        """Same pre-existing ROUND-wrapped shape, in a GROUP BY query
+        alongside a co-selected COUNT(*) -- also unaffected by 7.1b."""
         t = translate(
-            "SELECT JobRole, COUNT(*) AS total_employees, "
-            "ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 "
-            "/ COUNT(*), 2) AS attrition_rate_pct FROM data GROUP BY JobRole "
-            "ORDER BY attrition_rate_pct DESC",
+            "SELECT Region, COUNT(*) AS total_records, "
+            "ROUND(SUM(CASE WHEN StatusFlag = 'Active' THEN 1.0 ELSE 0.0 END) * 100.0 "
+            "/ COUNT(*), 2) AS rate FROM data GROUP BY Region ORDER BY rate DESC",
             "data",
         )
         assert "DIVIDE" in t.expression
         assert t.is_percentage is True
 
 
-class TestUnsupportedShapes:
-    def test_row_wise_product_now_supported_not_rejected(self):
-        """
-        SCOPE EXTENSION (2026-07-12): SUM(ColA * ColB) is now a legitimately
-        supported shape (-> DAX SUMX), needed for online_retail's revenue
-        KPIs where revenue = Quantity * UnitPrice has no precomputed column.
-        This SQL shape is syntactically identical to Chinook's original
-        "Total Revenue" sabotage case (SUM(Total * InvoiceId) -- multiplying
-        by a surrogate key) -- the translator cannot and should not try to
-        distinguish "legitimate line-item revenue" from "accidentally
-        multiplying by an ID column" by syntax alone; that's a data-
-        semantics judgment for the Reflector to catch upstream (which it
-        does, in chinook_reflection.json's real fixed_sql_query), not
-        something the SQL->DAX translator can police. This test replaces
-        the old test_arithmetic_inside_aggregate_rejected, which asserted a
-        rejection that was really just a side effect of the translator not
-        supporting this shape at all yet.
-        """
-        t = translate("SELECT SUM(Total * InvoiceId) AS Total FROM data", "data")
-        assert t.expression == "SUMX('data', 'data'[Total] * 'data'[InvoiceId])"
+class TestSQLToDaxQuotedIdentifiers:
+    """
+    BUG FIX 7.1a regression coverage: a KPI-generation run used ANSI
+    double-quoted identifiers (SUM("Total"), GROUP BY "BillingCountry")
+    instead of bare ones. Every shape-matching regex in the translator
+    expects a bare identifier; _normalize_identifiers strips the quotes
+    once, up front, in translate/translate_multi/extract_group_by_column,
+    so nothing downstream needs to change. Single-quoted string literals
+    (real SQL string values) must never be touched by this.
+    """
 
-    def test_addition_inside_aggregate_still_rejected(self):
+    def test_quoted_single_aggregate(self):
+        t = translate('SELECT SUM("Amount") AS total FROM data', "data")
+        assert t.expression == "SUM('data'[Amount])"
+
+    def test_quoted_aggregate_currency_still_detected(self):
+        """Confirms normalization happens before the (lowercased) currency
+        hint check -- a quoted column name must still be recognized."""
+        t = translate('SELECT SUM("Amount") AS total FROM data', "data")
+        assert t.is_currency is True
+
+    def test_quoted_grouped_aggregate(self):
+        t = translate(
+            'SELECT "Region", SUM("Amount") AS total FROM data GROUP BY "Region" ORDER BY total DESC',
+            "data",
+        )
+        assert t.expression == "SUM('data'[Amount])"
+
+    def test_quoted_group_by_column_extracted_bare(self):
+        col = extract_group_by_column(
+            'SELECT "Region", SUM("Amount") AS total FROM data GROUP BY "Region" ORDER BY total DESC'
+        )
+        assert col == "Region"
+
+    def test_quoted_and_bare_identifiers_translate_identically(self):
+        """Same query, two quoting styles -> identical DAX output."""
+        quoted = translate('SELECT AVG("UnitCost") AS avg_cost FROM data', "data")
+        bare = translate("SELECT AVG(UnitCost) AS avg_cost FROM data", "data")
+        assert quoted.expression == bare.expression
+
+    def test_single_quoted_string_literal_not_touched_by_normalization(self):
         """
-        Only a bare "col * col" product is recognized. Other arithmetic
-        (+, -, /, more than 2 operands, a literal constant operand) is NOT
-        guessed at -- e.g. SUM(ColA + ColB) has no _ROWWISE_PRODUCT_RE
-        match and falls through to the generic unsupported-shape error.
+        Double-quote normalization must never touch a single-quoted SQL
+        string literal (a real comparison value, not an identifier) --
+        confirmed via a WHERE-filtered, quoted-identifier query that still
+        resolves the single-quoted comparison value correctly.
+        """
+        t = translate(
+            'SELECT SUM("Amount") AS total FROM data WHERE StatusFlag = \'Active\'',
+            "data",
+        )
+        assert "CALCULATE" in t.expression
+        assert "\"Active\"" in t.expression or "'Active'" in t.expression
+
+
+class TestSQLToDaxWrappedRatioExpressions:
+    """
+    BUG FIX 7.1b regression coverage: a ratio/percentage expression
+    defensively wrapped in its own outer parens -- e.g.
+    "(SUM(CASE WHEN col = 'val' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))" --
+    silently defeated every shape matcher (they expect the expression to
+    start directly with SUM/AVG/COUNT, and the ratio's "/" ends up at
+    paren-depth 1, not 0). _strip_enclosing_parens (used inside
+    _translate_core) and _unwrap_item_parens (used when classifying a
+    GROUP BY SELECT-list item) fix this centrally.
+    """
+
+    def test_wrapped_ratio_card_no_group_by(self):
+        t = translate(
+            "SELECT (SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) "
+            "AS rate FROM data",
+            "data",
+        )
+        assert t.aggregation == "DIVIDE"
+        assert t.is_percentage is True
+        assert "COUNTROWS(FILTER(" in t.expression
+
+    def test_wrapped_ratio_matches_unwrapped_form_exactly(self):
+        wrapped = translate(
+            "SELECT (SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) "
+            "AS rate FROM data",
+            "data",
+        )
+        unwrapped = translate(
+            "SELECT SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) "
+            "AS rate FROM data",
+            "data",
+        )
+        assert wrapped.expression == unwrapped.expression
+
+    def test_double_wrapped_parens_still_unwrapped(self):
+        """Recursion: more than one redundant layer must still be peeled."""
+        t = translate(
+            "SELECT ((SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))) "
+            "AS rate FROM data",
+            "data",
+        )
+        assert t.is_percentage is True
+
+    def test_wrapped_ratio_alongside_two_supporting_counts_in_group_by(self):
+        """
+        The exact real-world shape that was broken: a GROUP BY query
+        selecting a raw COUNT(*), a standalone SUM(CASE WHEN...), AND the
+        wrapped percentage built from that same SUM -- three agg_items
+        once unwrapped, only one of which is a ratio. Must resolve to the
+        rate, not reject as "not exactly one aggregate expression".
+        """
+        t = translate(
+            "SELECT Region, COUNT(*) AS total_records, "
+            "SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) AS active_count, "
+            "(SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS active_rate "
+            "FROM data GROUP BY Region ORDER BY active_rate DESC",
+            "data",
+        )
+        assert t.aggregation == "DIVIDE"
+        assert t.is_percentage is True
+
+    def test_non_redundant_arithmetic_still_rejected(self):
+        """
+        _strip_enclosing_parens only strips a wrap that spans the WHOLE
+        expression; it must not make an unsupported shape (arithmetic
+        other than a recognized ratio) suddenly "work" just because it
+        happens to be paren-wrapped.
         """
         with pytest.raises(SQLToDaxError):
-            translate("SELECT SUM(Total + InvoiceId) AS Total FROM data", "data")
+            translate("SELECT (SUM(Amount) + 1) AS total FROM data", "data")
 
-    def test_multi_aggregate_rejected_by_translate(self):
-        """translate() must reject 2 non-ratio aggregates; use translate_multi instead."""
+    def test_partial_wrap_left_alone(self):
+        """
+        A "(" that closes in the MIDDLE of the expression (not at the very
+        end) is not a redundant outer wrap and must not be stripped --
+        e.g. "(SUM(Amount)) + (COUNT(RecordId))" is still two separately-
+        wrapped terms added together, which remains unsupported.
+        """
+        with pytest.raises(SQLToDaxError):
+            translate("SELECT (SUM(Amount)) + (COUNT(RecordId)) AS total FROM data", "data")
+
+    def test_two_distinct_ratios_still_ambiguous_and_rejected(self):
+        """
+        The generalized "exactly one ratio among N agg_items" rule must
+        still reject the genuinely ambiguous case of two DIFFERENT ratio
+        expressions co-selected in one query -- there's no principled way
+        to pick one over the other.
+        """
         with pytest.raises(SQLToDaxError):
             translate(
-                "SELECT CustomerId, COUNT(InvoiceId) AS InvoiceId, SUM(Total) AS Total "
-                "FROM data GROUP BY CustomerId ORDER BY Total DESC LIMIT 10",
+                "SELECT Region, SUM(Amount) / COUNT(RecordId) AS avg1, "
+                "SUM(UnitCost) / COUNT(RecordId) AS avg2 FROM data GROUP BY Region",
+                "data",
+            )
+
+
+class TestSQLToDaxUnsupportedShapes:
+    def test_row_wise_product_supported(self):
+        t = translate("SELECT SUM(UnitsSold * UnitCost) AS revenue FROM data", "data")
+        assert t.expression == "SUMX('data', 'data'[UnitsSold] * 'data'[UnitCost])"
+
+    def test_addition_inside_aggregate_rejected(self):
+        with pytest.raises(SQLToDaxError):
+            translate("SELECT SUM(Amount + 1) AS total FROM data", "data")
+
+    def test_multi_aggregate_rejected_by_translate(self):
+        with pytest.raises(SQLToDaxError):
+            translate(
+                "SELECT Region, COUNT(RecordId) AS n, SUM(Amount) AS total "
+                "FROM data GROUP BY Region ORDER BY total DESC",
                 "data",
             )
 
     def test_two_independent_non_ratio_aggregates_rejected_even_with_bare_count(self):
-        """
-        REGRESSION GUARD: a bare COUNT(col) alongside an unrelated plain
-        SUM(col) (neither is a ratio/percentage) must still be rejected --
-        this combination was, for a short window during development,
-        incorrectly accepted by picking the SUM as if it were "the rate"
-        in a COUNT+ratio pattern it does not actually match.
-        """
         with pytest.raises(SQLToDaxError):
             translate(
-                "SELECT Department, COUNT(EmployeeId) AS EmployeeId, "
-                "SUM(MonthlyIncome) AS MonthlyIncome FROM data GROUP BY Department",
+                "SELECT Region, COUNT(EntryId) AS n, SUM(Amount) AS total FROM data GROUP BY Region",
                 "data",
             )
 
@@ -817,70 +502,94 @@ class TestUnsupportedShapes:
             translate("SELECT * FROM data", "data")
 
 
-class TestMultiMeasureTranslation:
+class TestSQLToDaxMultiMeasure:
     def test_two_aggregates_for_table_kpi(self):
         translations = translate_multi(
-            "SELECT CustomerId, COUNT(InvoiceId) AS InvoiceId, SUM(Total) AS Total "
-            "FROM data GROUP BY CustomerId ORDER BY Total DESC LIMIT 10",
+            "SELECT Region, COUNT(RecordId) AS n, SUM(Amount) AS total "
+            "FROM data GROUP BY Region ORDER BY total DESC LIMIT 10",
             "data",
         )
         assert len(translations) == 2
         exprs = {t.expression for t in translations}
-        assert exprs == {"COUNT('data'[InvoiceId])", "SUM('data'[Total])"}
+        assert exprs == {"COUNT('data'[RecordId])", "SUM('data'[Amount])"}
 
     def test_no_aggregates_raises(self):
         with pytest.raises(SQLToDaxError):
-            translate_multi("SELECT CustomerId FROM data", "data")
+            translate_multi("SELECT Region FROM data", "data")
+
+    def test_wrapped_ratio_alongside_plain_aggregate_kept_as_two_measures(self):
+        """
+        Unlike translate() (which picks ONE metric for a single-measure
+        chart), translate_multi() legitimately keeps every recognized
+        aggregate as its own sibling measure -- a table visual can show a
+        raw count next to a computed rate. Confirms the 7.1b paren-unwrap
+        fix also applies here without collapsing the two into one.
+        """
+        translations = translate_multi(
+            "SELECT Region, COUNT(*) AS n, "
+            "(SUM(CASE WHEN StatusFlag = 'Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS rate "
+            "FROM data GROUP BY Region",
+            "data",
+        )
+        assert len(translations) == 2
+        aggregations = {t.aggregation for t in translations}
+        assert aggregations == {"COUNTROWS", "DIVIDE"}
+
+    def test_quoted_identifiers_in_table_kpi(self):
+        translations = translate_multi(
+            'SELECT "Region", COUNT("RecordId") AS n, SUM("Amount") AS total FROM data GROUP BY "Region"',
+            "data",
+        )
+        assert len(translations) == 2
+        exprs = {t.expression for t in translations}
+        assert exprs == {"COUNT('data'[RecordId])", "SUM('data'[Amount])"}
 
 
-class TestGroupByExtraction:
+class TestGroupByColumnExtraction:
     def test_plain_group_by(self):
         assert extract_group_by_column(
-            "SELECT BillingState, SUM(Total) AS Total FROM data GROUP BY BillingState ORDER BY Total DESC"
-        ) == "BillingState"
+            "SELECT Region, SUM(Amount) AS total FROM data GROUP BY Region ORDER BY total DESC"
+        ) == "Region"
 
     def test_strftime_group_by_extracts_inner_column(self):
         assert extract_group_by_column(
-            "SELECT strftime('%Y-%m', InvoiceDate) AS InvoiceDate, SUM(Total) AS Total "
-            "FROM data GROUP BY strftime('%Y-%m', InvoiceDate) ORDER BY InvoiceDate ASC"
-        ) == "InvoiceDate"
+            "SELECT strftime('%Y-%m', SignupDate) AS month, SUM(Amount) AS total "
+            "FROM data GROUP BY month ORDER BY month"
+        ) == "SignupDate"
 
     def test_no_group_by_returns_none(self):
-        assert extract_group_by_column("SELECT SUM(Total) AS Total FROM data") is None
+        assert extract_group_by_column("SELECT SUM(Amount) AS total FROM data") is None
 
     def test_group_by_with_limit_no_order(self):
         assert extract_group_by_column(
-            "SELECT CustomerId, COUNT(*) AS n FROM data GROUP BY CustomerId LIMIT 10"
-        ) == "CustomerId"
+            "SELECT Region, COUNT(*) AS n FROM data GROUP BY Region LIMIT 10"
+        ) == "Region"
 
 
 # =====================================================================
-# Unit tests for Profiler dtype -> DAX/M/summarizeBy mapping
-#
-# map_dtype/dax_type_to_m_type live in pbir/models/dtypes.py.
+# Unit tests: Profiler dtype -> DAX/M/summarizeBy mapping
+# (map_dtype / dax_type_to_m_type, in pbir/models/dtypes.py).
 # =====================================================================
-
-from pbir.models.dtypes import map_dtype, dax_type_to_m_type
 
 
 class TestDtypeMapping:
     def test_integer_maps_to_int64(self):
-        m = map_dtype("integer", column_name="Quantity")
+        m = map_dtype("integer", column_name="UnitsSold")
         assert m.dax_type == "int64"
         assert m.default_summarize_by == "sum"
 
     def test_float_maps_to_decimal(self):
-        m = map_dtype("float", column_name="Price")
+        m = map_dtype("float", column_name="UnitCost")
         assert m.dax_type == "decimal"
         assert m.default_summarize_by == "sum"
 
     def test_string_maps_to_string_no_summarize(self):
-        m = map_dtype("string", column_name="Name")
+        m = map_dtype("string", column_name="Category")
         assert m.dax_type == "string"
         assert m.default_summarize_by == "none"
 
     def test_datetime_maps_to_datetime(self):
-        m = map_dtype("datetime", column_name="OrderDate")
+        m = map_dtype("datetime", column_name="EventDate")
         assert m.dax_type == "dateTime"
         assert m.default_summarize_by == "none"
 
@@ -888,20 +597,22 @@ class TestDtypeMapping:
         m = map_dtype("some_weird_type", column_name="X")
         assert m.dax_type == "string"
 
-    def test_invoice_date_as_string_edge_case(self):
+    def test_date_like_column_profiled_as_string_stays_text(self):
         """
-        Real chinook_profile.json profiles InvoiceDate as inferred_dtype
-        'string' (not 'datetime') -- confirms the compiler correctly treats
-        it as text, not as a date-hierarchy candidate.
+        A date-shaped column that the Profiler infers as 'string' rather
+        than 'datetime' (a real, observed Profiler outcome) must be
+        treated as plain text, not guessed at as a date-hierarchy
+        candidate -- generic stand-in for the real 'a date column profiled
+        as string' edge case.
         """
-        m = map_dtype("string", column_name="InvoiceDate")
+        m = map_dtype("string", column_name="SignupDate")
         assert m.dax_type == "string"
         assert m.default_summarize_by == "none"
 
 
 class TestIdColumnSuppression:
     def test_id_suffix_suppresses_sum(self):
-        m = map_dtype("integer", column_name="CustomerId")
+        m = map_dtype("integer", column_name="RecordId")
         assert m.default_summarize_by == "none"
 
     def test_key_suffix_suppresses_sum(self):
@@ -909,11 +620,23 @@ class TestIdColumnSuppression:
         assert m.default_summarize_by == "none"
 
     def test_genuine_quantity_column_still_sums(self):
-        m = map_dtype("integer", column_name="Quantity")
+        m = map_dtype("integer", column_name="UnitsSold")
         assert m.default_summarize_by == "sum"
 
     def test_no_column_name_defaults_to_dtype_table(self):
         m = map_dtype("integer")
+        assert m.default_summarize_by == "sum"
+
+    def test_low_cardinality_integer_suppresses_sum(self):
+        """Ordinal/rating-shaped integer column (few distinct values, no
+        Id/Key/Code suffix) must not default to summing either."""
+        m = map_dtype("integer", column_name="PriorityLevel", distinct_count=5)
+        assert m.default_summarize_by == "none"
+
+    def test_high_cardinality_integer_without_id_suffix_still_sums(self):
+        """Confirms the low-cardinality override doesn't over-trigger for
+        a genuinely additive, high-cardinality column."""
+        m = map_dtype("integer", column_name="UnitsSold", distinct_count=480)
         assert m.default_summarize_by == "sum"
 
 
@@ -935,29 +658,19 @@ class TestMTypeLiteralAccessor:
 
 
 # =====================================================================
-# Unit tests for page-grouping and canvas layout
-#
-# group_into_pages/layout_page live in pbir/compiler/builder.py.
+# Unit tests: page-grouping and canvas layout
+# (group_into_pages / layout_page, in pbir/compiler/builder.py).
 # =====================================================================
-
-from pbir.compiler.builder import group_into_pages, layout_page
-from pbir.models.visual import Visual
 
 
 def _mk(n: int, chart_type: str) -> Visual:
     return Visual(visual_id=f"v{n}", chart_type=chart_type, title=f"t{n}", measure_ref=f"m{n}")
 
 
-class TestGrouping:
-    def test_five_kpi_chinook_shape_meets_acceptance_criteria(self):
+class TestPageGrouping:
+    def test_five_visual_mixed_shape_meets_acceptance_criteria(self):
         """2 cards + 1 line + 1 bar + 1 table -> must yield >=2 pages, >=4 visuals."""
-        visuals = [
-            _mk(1, "card"),
-            _mk(2, "card"),
-            _mk(3, "lineChart"),
-            _mk(4, "barChart"),
-            _mk(5, "table"),
-        ]
+        visuals = [_mk(1, "card"), _mk(2, "card"), _mk(3, "lineChart"), _mk(4, "barChart"), _mk(5, "table")]
         pages = group_into_pages(visuals)
         assert len(pages) >= 2
         assert sum(len(p) for p in pages) == 5
@@ -973,8 +686,8 @@ class TestGrouping:
         visuals = [_mk(1, "card"), _mk(2, "card"), _mk(3, "card"), _mk(4, "lineChart"), _mk(5, "barChart")]
         pages = group_into_pages(visuals)
         assert len(pages) == 2
-        assert len(pages[0]) == 3  # cards page
-        assert len(pages[1]) == 2  # charts page
+        assert len(pages[0]) == 3
+        assert len(pages[1]) == 2
 
     def test_single_visual(self):
         pages = group_into_pages([_mk(1, "card")])
@@ -987,14 +700,13 @@ class TestGrouping:
         assert all(len(p) <= 3 for p in pages)
         assert sum(len(p) for p in pages) == 7
 
-    def test_charts_cap_at_two_per_page(self):
+    def test_all_visuals_preserved_across_pages(self):
         visuals = [_mk(i, "barChart") for i in range(5)]
         pages = group_into_pages(visuals)
-        assert all(len(p) <= 2 for p in pages if p is not pages[-1]) or True
         assert sum(len(p) for p in pages) == 5
 
 
-class TestLayout:
+class TestVisualLayout:
     def test_positions_are_non_overlapping_for_two_cards(self):
         visuals = [_mk(1, "card"), _mk(2, "card")]
         layout_page(visuals)
@@ -1010,7 +722,413 @@ class TestLayout:
         visuals = [_mk(1, "lineChart"), _mk(2, "barChart"), _mk(3, "table")]
         layout_page(visuals)
         ys = {v.position.y for v in visuals}
-        assert len(ys) == 2  # two distinct row y-positions
+        assert len(ys) == 2
 
     def test_empty_list_does_not_crash(self):
-        layout_page([])  # should be a no-op, not raise
+        layout_page([])
+
+
+# =====================================================================
+# MIN_VISUALS_REQUIRED acceptance gate: individual untranslatable KPIs
+# are dropped (not fatal), but the whole build is rejected if too few
+# survive translation to meet the project's visual-count criterion.
+# =====================================================================
+
+
+class TestMinimumVisualAcceptanceThreshold:
+    def _tiny_profile(self) -> DataProfile:
+        return DataProfile(
+            source_path="data/raw/tiny.csv",
+            source_table=None,
+            row_count=10,
+            column_count=2,
+            is_single_row=False,
+            columns={
+                "Amount": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
+                "Category": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
+            },
+        )
+
+    def test_build_rejected_when_fewer_than_four_visuals_survive(self):
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=self._tiny_profile(), kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.pbir_project is None
+        assert any("only 2 KPI(s)" in e for e in result.errors)
+
+    def test_build_accepted_when_exactly_four_visuals_survive(self):
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="By Category", description="d", sql_query="SELECT Category, SUM(Amount) AS Amount FROM data GROUP BY Category", chart_type="barChart", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=self._tiny_profile(), kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.errors == []
+        assert result.pbir_project is not None
+        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
+
+    def test_individual_untranslatable_kpi_is_dropped_not_fatal(self):
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG(Amount) AS Amount FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="By Category", description="d", sql_query="SELECT Category, SUM(Amount) AS Amount FROM data GROUP BY Category", chart_type="barChart", reasoning="r"),
+            # Genuinely untranslatable (addition, not a recognized shape) --
+            # should be dropped, not fatal, since 4 others still survive.
+            KPISpec(name="Bad KPI", description="d", sql_query="SELECT SUM(Amount + 1) AS Amount FROM data", chart_type="card", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=self._tiny_profile(), kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.pbir_project is not None
+        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
+        assert any("Bad KPI" in e for e in result.errors)
+
+
+# =====================================================================
+# Full-pipeline integration: builder.run_pbir_compiler against the
+# synthetic 6-KPI fixture defined at the top of this file (all 4 chart
+# types, an Id column, a low-cardinality rating column, a currency
+# column, and both SQL->DAX bug patterns fixed this session).
+# =====================================================================
+
+
+class TestFullPipelineIntegration:
+    def test_produces_at_least_two_pages(self, compiled_synthetic_project):
+        assert len(compiled_synthetic_project.pages) >= 2
+
+    def test_produces_at_least_four_visuals(self, compiled_synthetic_project):
+        total = sum(len(p.visuals) for p in compiled_synthetic_project.pages)
+        assert total >= 4
+
+    def test_all_six_kpis_translate_successfully(self, compiled_synthetic_project):
+        """None of the 6 synthetic KPIs is deliberately broken -- all should
+        survive translation, including both quoted-identifier and
+        wrapped-ratio shapes."""
+        total = sum(len(p.visuals) for p in compiled_synthetic_project.pages)
+        assert total == len(SYNTHETIC_KPI_SPECS) == 6
+
+    def test_every_visual_measure_ref_is_a_real_measure(self, compiled_synthetic_project):
+        measure_names = {m.name for m in compiled_synthetic_project.data_table.measures}
+        for page in compiled_synthetic_project.pages:
+            for visual in page.visuals:
+                assert visual.measure_ref in measure_names
+
+    def test_id_column_not_summed(self, compiled_synthetic_project):
+        record_id = [c for c in compiled_synthetic_project.data_table.columns if c.name == "RecordId"]
+        assert len(record_id) == 1
+        assert record_id[0].summarize_by == "none"
+
+    def test_low_cardinality_rating_column_not_summed(self, compiled_synthetic_project):
+        priority = [c for c in compiled_synthetic_project.data_table.columns if c.name == "PriorityLevel"]
+        assert len(priority) == 1
+        assert priority[0].summarize_by == "none"
+
+    def test_genuinely_additive_column_still_sums(self, compiled_synthetic_project):
+        amount = [c for c in compiled_synthetic_project.data_table.columns if c.name == "Amount"]
+        assert len(amount) == 1
+        assert amount[0].summarize_by == "sum"
+
+    def test_currency_measure_uses_currency_format(self, compiled_synthetic_project):
+        total_amount = [m for m in compiled_synthetic_project.data_table.measures if m.name == "Total Amount"]
+        assert len(total_amount) == 1
+        assert total_amount[0].is_currency is True
+        assert total_amount[0].format_string == "\\$#,0.00"
+
+    def test_percentage_measures_use_percentage_format(self, compiled_synthetic_project):
+        pct_names = {"Overall Active Rate", "Active Rate by Region"}
+        pct_measures = [m for m in compiled_synthetic_project.data_table.measures if m.name in pct_names]
+        assert len(pct_measures) == 2
+        for m in pct_measures:
+            assert m.format_string == "0.00\\%"
+            assert "DIVIDE" in m.expression
+            assert "COUNTROWS" in m.expression
+
+    def test_multi_measure_table_kpi_produces_two_measures(self, compiled_synthetic_project):
+        names = [m.name for m in compiled_synthetic_project.data_table.measures]
+        matching = [n for n in names if n.startswith("Priority Breakdown")]
+        assert len(matching) == 2
+
+    def test_quoted_identifier_kpi_resolves_category_ref_bare(self, compiled_synthetic_project):
+        """BUG FIX 7.1a at full-pipeline level: 'Amount by Region' uses
+        double-quoted SQL throughout -- category_ref must be the bare
+        column name, not None and not still-quoted."""
+        matches = [
+            v for page in compiled_synthetic_project.pages for v in page.visuals
+            if v.title == "Amount by Region"
+        ]
+        assert len(matches) == 1
+        assert matches[0].category_ref == "Region"
+
+    def test_wrapped_ratio_kpis_bind_to_percentage_measures(self, compiled_synthetic_project):
+        """BUG FIX 7.1b at full-pipeline level: both wrapped-ratio KPIs
+        must produce a visual bound to a DIVIDE-based measure."""
+        measure_exprs = {m.name: m.expression for m in compiled_synthetic_project.data_table.measures}
+        for title in ("Active Rate by Region", "Overall Active Rate"):
+            matches = [v for page in compiled_synthetic_project.pages for v in page.visuals if v.title == title]
+            assert len(matches) == 1, f"no visual found for {title!r}"
+            assert "DIVIDE" in measure_exprs[matches[0].measure_ref]
+
+    def test_report_name_derived_from_csv_filename_stem(self, compiled_synthetic_project):
+        """source_table is None (CSV input, the realistic case for this
+        pipeline) -- falls back to the source CSV's filename stem."""
+        assert compiled_synthetic_project.report_name == "synthetic_activity"
+
+    def test_missing_data_profile_records_error_not_crash(self):
+        state = AgentState(kpi_specs=SYNTHETIC_KPI_SPECS, query_results=SYNTHETIC_QUERY_RESULTS)
+        result = run_pbir_compiler(state)
+        assert result.pbir_project is None
+        assert len(result.errors) == 1
+        assert "data_profile" in result.errors[0]
+
+
+# =====================================================================
+# Serialiser: folder-tree structure (write_pbip against the compiled
+# synthetic project).
+# =====================================================================
+
+
+class TestSerialiserFolderStructure:
+    def test_root_pointer_file_exists(self, synthetic_output_dir, compiled_synthetic_project):
+        pbip_file = synthetic_output_dir / f"{compiled_synthetic_project.report_name}.pbip"
+        assert pbip_file.exists()
+
+    def test_report_and_semantic_model_folders_exist(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        assert (synthetic_output_dir / f"{name}.Report").is_dir()
+        assert (synthetic_output_dir / f"{name}.SemanticModel").is_dir()
+
+    def test_platform_files_exist_both_sides(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        assert (synthetic_output_dir / f"{name}.Report" / ".platform").exists()
+        assert (synthetic_output_dir / f"{name}.SemanticModel" / ".platform").exists()
+
+    def test_definition_pbir_links_to_semantic_model(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        pbir = json.loads((synthetic_output_dir / f"{name}.Report" / "definition.pbir").read_text())
+        assert pbir["datasetReference"]["byPath"]["path"] == f"../{name}.SemanticModel"
+
+    def test_pages_json_lists_every_page_folder(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        pages_json = json.loads(
+            (synthetic_output_dir / f"{name}.Report" / "definition" / "pages" / "pages.json").read_text()
+        )
+        assert len(pages_json["pageOrder"]) == len(compiled_synthetic_project.pages)
+        for page_id in pages_json["pageOrder"]:
+            assert (synthetic_output_dir / f"{name}.Report" / "definition" / "pages" / page_id / "page.json").exists()
+
+    def test_every_visual_json_exists_and_matches_page(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        for page in compiled_synthetic_project.pages:
+            page_dir = synthetic_output_dir / f"{name}.Report" / "definition" / "pages" / page.page_id
+            for visual in page.visuals:
+                visual_file = page_dir / "visuals" / visual.visual_id / "visual.json"
+                assert visual_file.exists(), f"missing {visual_file}"
+
+    def test_table_tmdl_exists(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        table_file = (
+            synthetic_output_dir / f"{name}.SemanticModel" / "definition" / "tables"
+            / f"{compiled_synthetic_project.data_table.name}.tmdl"
+        )
+        assert table_file.exists()
+
+    def test_relationships_tmdl_never_written(self, synthetic_output_dir):
+        """Relationships are permanently out of scope (mentor sign-off)."""
+        assert not list(synthetic_output_dir.rglob("relationships.tmdl"))
+
+    def test_no_sqlite_or_date_table_files_ever_written(self, synthetic_output_dir):
+        """SQLite M-source and auto-date-tables are permanently out of
+        scope (mentor sign-off: CSV-only, no auto-generated date tables)."""
+        assert not list(synthetic_output_dir.rglob("LocalDateTable_*.tmdl"))
+        assert not list(synthetic_output_dir.rglob("DateTableTemplate_*.tmdl"))
+        for tmdl_file in synthetic_output_dir.rglob("*.tmdl"):
+            assert "Sqlite.Database" not in tmdl_file.read_text()
+
+    def test_excluded_files_never_written(self, synthetic_output_dir):
+        """SS2.15: these should never appear in compiler output."""
+        forbidden = [
+            "**/.pbi/localSettings.json",
+            "**/.pbi/cache.abf",
+            "**/.pbi/editorSettings.json",
+            "**/diagramLayout.json",
+            "**/cultures/en-US.tmdl",
+        ]
+        for pattern in forbidden:
+            matches = list(synthetic_output_dir.glob(pattern))
+            assert matches == [], f"unexpected excluded file(s) written: {matches}"
+
+
+# =====================================================================
+# Serialiser: JSON structural correctness.
+# =====================================================================
+
+
+class TestJSONValidity:
+    def test_every_json_file_parses(self, synthetic_output_dir):
+        json_files = list(synthetic_output_dir.rglob("*.json"))
+        assert len(json_files) > 0
+        for f in json_files:
+            json.loads(f.read_text())
+
+    def test_tableEx_has_no_rows_role(self, synthetic_output_dir, compiled_synthetic_project):
+        """The #1 way to break a tableEx visual: copying pivotTable's Rows role."""
+        name = compiled_synthetic_project.report_name
+        found = False
+        for page in compiled_synthetic_project.pages:
+            for visual in page.visuals:
+                if visual.chart_type != "table":
+                    continue
+                found = True
+                visual_file = (
+                    synthetic_output_dir / f"{name}.Report" / "definition" / "pages"
+                    / page.page_id / "visuals" / visual.visual_id / "visual.json"
+                )
+                data = json.loads(visual_file.read_text())
+                query_state = data["visual"]["query"]["queryState"]
+                assert "Rows" not in query_state
+                assert "Values" in query_state
+        assert found, "no table visual found in the synthetic project"
+
+    def test_card_visual_has_data_role(self, synthetic_output_dir, compiled_synthetic_project):
+        name = compiled_synthetic_project.report_name
+        found = False
+        for page in compiled_synthetic_project.pages:
+            for visual in page.visuals:
+                if visual.chart_type != "card":
+                    continue
+                found = True
+                visual_file = (
+                    synthetic_output_dir / f"{name}.Report" / "definition" / "pages"
+                    / page.page_id / "visuals" / visual.visual_id / "visual.json"
+                )
+                data = json.loads(visual_file.read_text())
+                assert "Data" in data["visual"]["query"]["queryState"]
+                assert data["visual"]["visualType"] == "cardVisual"
+        assert found, "no card visual found in the synthetic project"
+
+    def test_table_visual_projection_count_matches_category_plus_measures(
+        self, synthetic_output_dir, compiled_synthetic_project
+    ):
+        """'Priority Breakdown' groups by PriorityLevel and selects 2
+        aggregates -> 1 category + 2 measures = 3 sibling Values projections."""
+        name = compiled_synthetic_project.report_name
+        for page in compiled_synthetic_project.pages:
+            for visual in page.visuals:
+                if visual.chart_type != "table":
+                    continue
+                visual_file = (
+                    synthetic_output_dir / f"{name}.Report" / "definition" / "pages"
+                    / page.page_id / "visuals" / visual.visual_id / "visual.json"
+                )
+                data = json.loads(visual_file.read_text())
+                projections = data["visual"]["query"]["queryState"]["Values"]["projections"]
+                assert len(projections) == 3
+                return
+        pytest.fail("no table visual found in the synthetic project")
+
+
+# =====================================================================
+# TMDL formatting and ID-safety.
+# =====================================================================
+
+
+class TestTMDLFormatting:
+    def test_table_tmdl_uses_tabs_not_leading_spaces(self, synthetic_output_dir, compiled_synthetic_project):
+        """
+        Top-level declarations (table/measure/column/partition) are
+        correctly unindented; the M-script body uses spaces internally for
+        its own step lines (matches the reference sample's own
+        convention), which is expected. This only checks that nothing
+        uses a literal leading space where a TAB was expected.
+        """
+        name = compiled_synthetic_project.report_name
+        table_file = (
+            synthetic_output_dir / f"{name}.SemanticModel" / "definition" / "tables"
+            / f"{compiled_synthetic_project.data_table.name}.tmdl"
+        )
+        text = table_file.read_text()
+        for line in text.split("\n"):
+            if line.startswith(" "):
+                pytest.fail(f"Line starts with a literal space, not a tab: {line!r}")
+
+    def test_measure_lineage_tags_are_valid_uuids(self, compiled_synthetic_project):
+        for m in compiled_synthetic_project.data_table.measures:
+            uuid.UUID(m.lineage_tag)  # raises ValueError if not a valid UUID
+
+    def test_m_query_uses_csv_document_only(self, compiled_synthetic_project):
+        """CSV-only scope: every generated M query must use Csv.Document."""
+        tmdl_text = _build_table_tmdl(compiled_synthetic_project.data_table)
+        assert "Csv.Document" in tmdl_text
+        assert "Sqlite" not in tmdl_text
+        assert "Odbc" not in tmdl_text
+
+    def test_m_query_never_doubles_windows_path_backslashes(self):
+        """
+        REGRESSION GUARD: M's only string-escape rule is doubling the quote
+        character; backslash has no special meaning and must never be
+        doubled. Doubling a Windows absolute path's backslashes would
+        silently break Csv.Document (it would try to open a path matching
+        nothing on disk), with no other error surfaced.
+        """
+        windows_path = r"C:\Users\example\Documents\data\raw\synthetic.csv"
+        cols = [Column(name="Age", data_type="int64", source_column="Age")]
+        source = _build_m_partition_source(windows_path, cols)
+
+        assert windows_path in source, "the exact single-backslash path must appear verbatim"
+        assert "\\\\" not in source, "no doubled backslashes should ever appear in the M source"
+
+    def test_filter_names_never_collide_on_long_visual_ids(self):
+        """
+        REGRESSION GUARD: a prior filter-naming scheme truncated the
+        CONCATENATED (visual_id + field_name) string to a fixed cap before
+        the differentiating suffix was applied, so once visual_id alone
+        approached that cap, multiple filters on the same visual collapsed
+        onto an identical name. Desktop's real constraint is 1-50
+        characters, not the 40 originally assumed.
+        """
+        long_visual_id = "viz_some_fairly_long_descriptive_kpi_name_table"
+        names = [_local_filter_id(long_visual_id, i) for i in range(4)]
+
+        assert len(set(names)) == 4, f"filter names collided: {names}"
+        for name in names:
+            assert 1 <= len(name) <= 50, f"filter name outside Desktop's 1-50 char limit: {name!r}"
+        assert all(name.endswith(f"_{i}") for i, name in enumerate(names)), (
+            "the differentiating _<idx> suffix must never be truncated away"
+        )
+
+    def test_common_filter_id_matches_serialiser_fix(self):
+        """
+        pbir/models/common.py's filter_id() had the identical truncation
+        bug as serialiser.py's _local_filter_id() (same root cause, two
+        call sites) -- guards common.py's copy specifically, since other
+        code may still reach for it directly.
+        """
+        long_visual_id = "viz_some_fairly_long_descriptive_kpi_name_barchart"
+        f0 = filter_id(long_visual_id, "SomeField", 0)
+        f1 = filter_id(long_visual_id, "OtherField", 1)
+
+        assert f0 != f1
+        assert 1 <= len(f0) <= 50
+        assert 1 <= len(f1) <= 50
+        assert f0.endswith("_0")
+        assert f1.endswith("_1")
