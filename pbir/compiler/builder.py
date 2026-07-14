@@ -227,6 +227,111 @@ _CONDITIONAL_PCT_RE = re.compile(
 _CURRENCY_COLUMN_HINTS = {"total", "price", "cost", "revenue", "amount", "sales", "income"}
 
 
+# =====================================================================
+# SQL normalization helpers (bug fixes 7.1a / 7.1b)
+#
+# Two small, general text-level normalizations applied BEFORE any shape
+# regex runs, so the many shape-matchers above (which all assume a bare
+# "[A-Za-z_][A-Za-z0-9_]*" identifier and an aggregate call sitting at
+# the very start of an expression) keep working completely unchanged
+# against SQL that is merely STYLED differently, not structurally
+# different. Neither of these teaches the translator any new DAX shape
+# -- they only strip cosmetic variation (quoting, defensive grouping
+# parens) that was defeating the existing shape-matchers before they
+# even got a chance to run.
+# =====================================================================
+
+# ANSI-style double-quoted identifier, e.g. "Total" -> Total. SQLite (and
+# standard SQL) uses double quotes for identifiers and single quotes for
+# string literals, so this never touches a real string literal -- e.g.
+# Attrition = 'Yes' and strftime('%Y-%m', ...) are both single-quoted and
+# left completely untouched.
+_QUOTED_IDENTIFIER_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"')
+
+
+def _normalize_identifiers(sql_query: str) -> str:
+    """
+    Strips ANSI-style double-quoted identifiers down to their bare form,
+    e.g. SELECT SUM("Total") FROM data -> SELECT SUM(Total) FROM data.
+
+    BUG FIX (7.1a): one dataset's KPI file was regenerated using
+    double-quoted identifiers for every column reference (SUM("Total"),
+    GROUP BY "BillingCountry", etc.) -- a different SQL quoting style
+    than every regex in this module was written against, all of which
+    match bare identifiers only. Rather than teach each individual
+    shape-matching regex to separately tolerate an optional pair of
+    quotes, normalize once, up front: every downstream regex then sees
+    exactly the same bare-identifier text it already expects, regardless
+    of which quoting style the upstream LLM used this run. Applied at
+    the top of every public entry point (translate, translate_multi,
+    extract_group_by_column) so it takes effect no matter which one a
+    caller reaches first -- each is called independently by
+    builder._build_measures_and_group_cols, not chained through a single
+    shared preprocessing step.
+    """
+    return _QUOTED_IDENTIFIER_RE.sub(r"\1", sql_query)
+
+
+def _strip_enclosing_parens(expr: str) -> str:
+    """
+    Strips one layer of fully-wrapping, semantically-redundant outer
+    parentheses from `expr` if present, e.g. "(SUM(x) / COUNT(y))" ->
+    "SUM(x) / COUNT(y)". Recurses to peel multiple redundant layers,
+    e.g. "((x))" -> "x". No-ops (returns expr unchanged) when there is
+    no wrap, or when the leading "(" is NOT matched by the trailing ")"
+    -- i.e. it closes somewhere in the middle, as in "(a) + (b)", where
+    stripping would corrupt the expression, so it is correctly left
+    alone (checked via paren-depth tracking, not just first/last char).
+
+    BUG FIX (7.1b): an LLM-generated ratio/percentage expression is
+    sometimes defensively wrapped in an outer pair of parens for
+    precedence clarity -- e.g. "(SUM(CASE WHEN col = 'val' THEN 1 ELSE 0
+    END) * 100.0 / COUNT(*))" -- which is semantically identical to the
+    unwrapped form but defeats every shape-matcher below: they all
+    expect the expression to start directly with SUM/AVG/COUNT, and
+    _try_ratio's paren-depth tracking expects the real top-level "/" to
+    actually sit at depth 0, which an outer wrap prevents (the "/" ends
+    up at depth 1 instead, so _split_top_level_operator never finds it).
+    Stripping the redundant wrap here -- once, centrally, as the first
+    step of _translate_core -- means every existing shape below keeps
+    working completely unchanged on the unwrapped text.
+    """
+    stripped = expr.strip()
+    if not (stripped.startswith("(") and stripped.endswith(")")):
+        return stripped
+    depth = 0
+    for i, ch in enumerate(stripped):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0 and i != len(stripped) - 1:
+                return stripped  # closes before the end -- not a true outer wrap
+    return _strip_enclosing_parens(stripped[1:-1])
+
+
+def _unwrap_item_parens(item: str) -> str:
+    """
+    For a single SELECT-list "<expr> AS <alias>" entry, strips one layer
+    of redundant fully-wrapping parens from <expr>, using the identical
+    rule as _strip_enclosing_parens (which this delegates to) -- e.g.
+    "(SUM(x) * 100.0 / COUNT(*)) AS pct" -> "SUM(x) * 100.0 / COUNT(*)
+    AS pct". This lets the aggregate-shape regex in
+    _extract_single_grouped_aggregate_expr / translate_multi (which
+    requires an item to start directly with ROUND/SUM/AVG/COUNT) still
+    recognize an item that is really just one of those shapes wearing a
+    defensive outer paren -- without it, such an item is silently
+    treated as "not an aggregate" and dropped from consideration
+    entirely (see 7.1b). No-op if `item` has no "AS <alias>" suffix, or
+    its expression part isn't fully wrapped.
+    """
+    m = re.match(r"^(?P<expr>.+?)\s+AS\s+(?P<alias>\w+)$", item, re.IGNORECASE | re.DOTALL)
+    if not m:
+        return item
+    unwrapped = _strip_enclosing_parens(m.group("expr"))
+    return f"{unwrapped} AS {m.group('alias')}"
+
+
 def _strip_where_clause(sql_query: str) -> tuple[str, str | None]:
     """
     Extracts a single WHERE condition from `sql_query` and returns
@@ -313,6 +418,15 @@ def _translate_core(stripped: str, table_name: str) -> DaxTranslation:
     COUNT(DISTINCT col), row-wise product (SUM/AVG(colA * colB)), plain
     single aggregate.
     """
+    # BUG FIX (7.1b): strip a redundant fully-wrapping outer paren first
+    # (no-op if there isn't one) -- see _strip_enclosing_parens docstring.
+    # Needed here (not just at the item-splitting level in
+    # _extract_single_grouped_aggregate_expr/translate_multi) because a
+    # no-GROUP-BY query's single SELECT expression reaches _translate_core
+    # directly, wrapping parens and all, via _translate_without_where's
+    # Case 3 select_match.
+    stripped = _strip_enclosing_parens(stripped)
+
     cond_match = _CONDITIONAL_PCT_RE.match(stripped)
     if cond_match:
         col = cond_match.group("col")
@@ -429,6 +543,7 @@ def translate(sql_query: str, table_name: str) -> DaxTranslation:
     total_revenue FROM data WHERE Quantity > 0 -> CALCULATE(SUMX('data',
     'data'[Quantity] * 'data'[UnitPrice]), 'data'[Quantity] > 0).
     """
+    sql_query = _normalize_identifiers(sql_query)  # bug fix 7.1a
     sql_without_where, condition = _strip_where_clause(sql_query)
     translation = _translate_without_where(sql_without_where, table_name, original_sql=sql_query)
     return _apply_where_filter(translation, condition, table_name)
@@ -583,6 +698,18 @@ def _extract_single_grouped_aggregate_expr(stripped: str) -> str | None:
     with the count column present in the query only as supporting context.
     Any other multi-aggregate combination returns None (translate_multi()
     territory, or genuinely ambiguous).
+
+    GENERALIZED (bug fix 7.1b): originally this "pick the rate, ignore its
+    supporting counts" rule only fired for exactly 2 agg_items (one bare
+    count + one ratio). That was too narrow for a query that selects a rate
+    ALONGSIDE more than one raw supporting aggregate -- e.g. COUNT(*) AS
+    total, SUM(CASE WHEN...) AS raw_numerator, (SUM(CASE WHEN...) * 100.0 /
+    COUNT(*)) AS rate is 3 agg_items once the wrapped rate expression is
+    unwrapped and recognized (see _unwrap_item_parens) -- so the rule below
+    now fires for ANY number of agg_items, as long as EXACTLY ONE of them
+    is a ratio/percentage expression (contains a top-level "/"). Zero or
+    2+ ratio items among agg_items is unchanged: still falls through to
+    None as genuinely ambiguous, same as before.
     """
     select_match = re.match(r"^SELECT\s+(?P<cols>.+?)\s+FROM\s", stripped, re.IGNORECASE | re.DOTALL)
     if not select_match:
@@ -592,7 +719,9 @@ def _extract_single_grouped_aggregate_expr(stripped: str) -> str | None:
     items = _split_top_level_commas(col_list_text)
     agg_items = []
     for item in items:
-        item = item.strip()
+        # bug fix 7.1b: unwrap a redundant outer paren before classifying
+        # the item -- see _unwrap_item_parens.
+        item = _unwrap_item_parens(item.strip())
         m = re.match(r"^(?P<expr>(?:ROUND\s*\(.+?,\s*\d+\s*\)|(?:SUM|AVG|COUNT)\s*\(.+?\)))\s+AS\s+\w+$", item, re.IGNORECASE | re.DOTALL)
         if m:
             agg_items.append(m.group("expr").strip())
@@ -600,25 +729,18 @@ def _extract_single_grouped_aggregate_expr(stripped: str) -> str | None:
     if len(agg_items) == 1:
         return agg_items[0]
 
-    if len(agg_items) == 2:
-        def _is_bare_count(expr: str) -> bool:
-            return bool(re.match(r"^COUNT\s*\(", expr, re.IGNORECASE)) and "/" not in expr and "CASE" not in expr.upper()
-
-        def _is_ratio_or_percentage(expr: str) -> bool:
-            # A ratio/percentage expression always contains a "/" (either a
-            # direct SUM(x)/COUNT(y) ratio, or the CASE-WHEN percentage
-            # idiom's "* 100.0 / COUNT(*)"). A plain SUM(col) or AVG(col)
-            # does NOT contain "/" and must NOT be picked here -- picking it
-            # would silently choose an unrelated aggregate as "the rate"
-            # (e.g. wrongly preferring SUM(Total) over a genuine COUNT(x)
-            # in a query that selects two independent, non-ratio aggregates
-            # -- that combination is NOT this pattern and must fall through
-            # to the multi-aggregate rejection instead).
-            return "/" in expr
-
-        bare_counts = [e for e in agg_items if _is_bare_count(e)]
-        ratios = [e for e in agg_items if _is_ratio_or_percentage(e)]
-        if len(bare_counts) == 1 and len(ratios) == 1 and bare_counts[0] != ratios[0]:
+    if len(agg_items) >= 2:
+        # A ratio/percentage expression always contains a "/" (either a
+        # direct SUM(x)/COUNT(y) ratio, or the CASE-WHEN percentage idiom's
+        # "* 100.0 / COUNT(*)"). A plain SUM(col)/AVG(col)/COUNT(col) does
+        # NOT contain "/" and must NOT be picked here -- picking one would
+        # silently choose an unrelated aggregate as "the rate" (e.g.
+        # wrongly preferring SUM(Total) over a genuine COUNT(x) when the
+        # query actually selects two independent, non-ratio aggregates --
+        # that combination is NOT this pattern and must still fall through
+        # to the multi-aggregate rejection below).
+        ratios = [e for e in agg_items if "/" in e]
+        if len(ratios) == 1:
             return ratios[0]
 
     return None
@@ -658,6 +780,7 @@ def translate_multi(sql_query: str, table_name: str) -> list[DaxTranslation]:
     CALCULATE(..., 'data'[Quantity] > 0), since the filter applies to the
     whole query, not just one of its several aggregate columns.
     """
+    sql_query = _normalize_identifiers(sql_query)  # bug fix 7.1a
     sql_without_where, condition = _strip_where_clause(sql_query)
 
     select_match = re.match(r"^SELECT\s+(?P<cols>.+?)\s+FROM\s", sql_without_where.strip(), re.IGNORECASE | re.DOTALL)
@@ -668,7 +791,11 @@ def translate_multi(sql_query: str, table_name: str) -> list[DaxTranslation]:
     translations: list[DaxTranslation] = []
 
     for item in items:
-        item = item.strip()
+        # bug fix 7.1b: unwrap a redundant outer paren before classifying
+        # the item, so e.g. "(SUM(x) * 100.0 / COUNT(*)) AS pct" is still
+        # recognized as an aggregate expression instead of silently
+        # skipped as "not an aggregate" (see _unwrap_item_parens).
+        item = _unwrap_item_parens(item.strip())
         m = re.match(
             r"^(?P<expr>(?:ROUND\s*\(.+?,\s*\d+\s*\)|(?:SUM|AVG|COUNT)\s*\(.+?\)))\s+AS\s+\w+$",
             item,
@@ -720,6 +847,7 @@ def extract_group_by_column(sql_query: str) -> str | None:
         taking just the first is the correct single binding rather than an
         arbitrary choice.)
     """
+    sql_query = _normalize_identifiers(sql_query)  # bug fix 7.1a
     match = re.search(
         r"GROUP\s+BY\s+(?P<expr>.+?)(?:\s+ORDER\s+BY|\s+LIMIT|\s*$)",
         sql_query,
