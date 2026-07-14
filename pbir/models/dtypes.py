@@ -99,15 +99,3 @@ def dax_type_to_m_type(dax_type: str) -> str:
 
 def is_date_column(inferred_dtype: str) -> bool:
     return inferred_dtype == "datetime"
-
-
-def dax_type_to_m_type(dax_type: str) -> str:
-    """Public accessor: DAX column dataType -> M TransformColumnTypes literal."""
-    for mapping in _DTYPE_TABLE.values():
-        if mapping.dax_type == dax_type:
-            return mapping.m_type_literal
-    return "type text"
-
-
-def is_date_column(inferred_dtype: str) -> bool:
-    return inferred_dtype == "datetime"
