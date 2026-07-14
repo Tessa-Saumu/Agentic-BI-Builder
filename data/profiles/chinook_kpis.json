@@ -1,44 +1,44 @@
 {
   "domain_hypothesis": {
-    "domain": "digital music retail",
+    "domain": "digital music retail (e-commerce)",
     "confidence": 0.95,
-    "reasoning": "The dataset contains columns such as 'Total', 'track_count', 'distinct_artists_purchased', 'distinct_tracks_purchased', 'primary_genre', and 'primary_artist', which are indicative of a music retail business. The presence of invoice-related fields (InvoiceId, InvoiceDate, CustomerId) further supports a retail transactional domain, specifically focused on digital music sales."
+    "reasoning": "The dataset contains columns like 'Total', 'track_count', 'distinct_artists_purchased', 'distinct_tracks_purchased', 'primary_genre', and 'primary_artist', which are indicative of music sales. The presence of 'InvoiceId', 'CustomerId', and 'InvoiceDate' further supports an e-commerce retail domain, specifically focused on digital music purchases."
   },
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "Sum of all transaction amounts (Total) to measure overall business performance.",
+      "description": "Sum of all transaction totals, representing the overall revenue generated from music sales.",
       "sql_query": "SELECT SUM(\"Total\") AS total_revenue FROM data",
       "chart_type": "card",
-      "reasoning": "Total revenue is a fundamental KPI for any retail business, providing a single summary metric of financial performance."
+      "reasoning": "Total revenue is a fundamental KPI for any retail business, providing a single summary metric of overall performance."
     },
     {
       "name": "Revenue by Country",
-      "description": "Sum of transaction amounts (Total) grouped by billing country to identify top markets.",
+      "description": "Sum of transaction totals grouped by billing country, identifying top revenue-generating markets.",
       "sql_query": "SELECT \"BillingCountry\", SUM(\"Total\") AS revenue FROM data GROUP BY \"BillingCountry\" ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "Revenue by country helps identify geographic markets contributing most to sales, suitable for a bar chart due to the categorical nature of countries."
+      "reasoning": "Revenue by country is critical for understanding geographic performance and is well-suited to a bar chart due to the low cardinality of countries."
     },
     {
       "name": "Monthly Revenue Trend",
-      "description": "Sum of transaction amounts (Total) grouped by month to analyze revenue trends over time.",
+      "description": "Sum of transaction totals grouped by month, showing revenue trends over time.",
       "sql_query": "SELECT strftime('%Y-%m', \"InvoiceDate\") AS month, SUM(\"Total\") AS revenue FROM data GROUP BY month ORDER BY month",
       "chart_type": "lineChart",
-      "reasoning": "Tracking revenue over time is critical for identifying seasonal patterns or growth trends, best visualized as a line chart."
+      "reasoning": "Tracking revenue over time is essential for identifying trends and seasonality, making a line chart the ideal visual."
     },
     {
       "name": "Average Purchase Value by Customer",
-      "description": "Average transaction amount (Total) per customer to assess customer spending behavior.",
+      "description": "Average transaction total per customer, indicating customer spending behavior.",
       "sql_query": "SELECT \"CustomerId\", AVG(\"Total\") AS avg_purchase_value FROM data GROUP BY \"CustomerId\" ORDER BY avg_purchase_value DESC",
       "chart_type": "table",
-      "reasoning": "This KPI provides insights into customer spending habits, useful for segmentation. A table is appropriate for detailed customer-level breakdowns."
+      "reasoning": "This KPI provides insights into customer value and is best displayed as a table to show individual customer performance."
     },
     {
       "name": "Top Genres by Revenue",
-      "description": "Sum of transaction amounts (Total) grouped by primary genre to identify the most popular music genres.",
+      "description": "Sum of transaction totals grouped by primary music genre, identifying the most popular genres.",
       "sql_query": "SELECT \"primary_genre\", SUM(\"Total\") AS revenue FROM data GROUP BY \"primary_genre\" ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "Understanding revenue by genre helps tailor inventory and marketing strategies, with a bar chart effectively comparing categorical genre performance."
+      "reasoning": "Understanding genre popularity is key for inventory and marketing strategies, and a bar chart effectively highlights genre performance."
     }
   ]
 }

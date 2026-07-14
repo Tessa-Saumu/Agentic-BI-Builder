@@ -3,7 +3,7 @@ tests/test_pbir_compiler.py -- the project's single unit/integration test
 suite for the PBIR Compiler (agent/models.py, agent/state.py,
 pbir/models/*, pbir/compiler/builder.py, pbir/compiler/serialiser.py).
 
-FIXTURE STRATEGY (mentor note, 2026-07): unit tests must primarily verify
+FIXTURE STRATEGY: unit tests must primarily verify
 this application's OWN behavior and stay independent of any particular
 external package/data implementation. Concretely here that means: no
 fixture in this file is built from a real dataset's KPI/profile JSON
