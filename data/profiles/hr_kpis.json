@@ -1,44 +1,44 @@
 {
   "domain_hypothesis": {
-    "domain": "HR Employee Performance & Attrition",
-    "confidence": 1.0,
-    "reasoning": "The dataset contains standard employee demographical, professional, and sentiment attributes like Attrition, MonthlyIncome, OverTime, JobSatisfaction, and various tenure metrics which perfectly match HR/people analytics schemas."
+    "domain": "HR/employee retention and satisfaction",
+    "confidence": 0.98,
+    "reasoning": "The dataset contains columns related to employee demographics (Age, Gender, MaritalStatus), job roles (JobRole, Department, JobLevel), compensation (MonthlyIncome, PercentSalaryHike, StockOptionLevel), satisfaction metrics (JobSatisfaction, EnvironmentSatisfaction, WorkLifeBalance), and attrition (Attrition). These are classic HR analytics signals, particularly around employee retention and workplace satisfaction."
   },
   "kpi_specs": [
     {
-      "name": "Overall Attrition Rate",
-      "description": "The percentage of employees who have left the organization, serving as a high-level health metric for overall employee retention.",
-      "sql_query": "SELECT ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate FROM data",
-      "chart_type": "card",
-      "reasoning": "A single KPI card represents the company-wide attrition benchmark against which all segments are compared."
-    },
-    {
       "name": "Attrition Rate by Department",
-      "description": "Compares attrition percentages across different departments to pinpoint specific areas with retention challenges.",
-      "sql_query": "SELECT Department, COUNT(*) AS total_employees, ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate FROM data GROUP BY Department ORDER BY attrition_rate DESC",
+      "description": "Percentage of employees who left the company (Attrition = 'Yes') grouped by Department. Helps identify departments with higher turnover.",
+      "sql_query": "SELECT Department, COUNT(*) AS total_employees, SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) AS attrition_count, (SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS attrition_rate FROM data GROUP BY Department ORDER BY attrition_rate DESC",
       "chart_type": "barChart",
-      "reasoning": "A bar chart highlights which departments have disproportionately higher rates of employee turnover."
+      "reasoning": "Attrition is a critical HR KPI, and Department is a low-cardinality categorical column ideal for comparison in a bar chart."
     },
     {
       "name": "Average Monthly Income by Job Role",
-      "description": "Analyzes internal compensation equity and competitiveness by mapping average monthly income across job roles.",
-      "sql_query": "SELECT JobRole, ROUND(AVG(MonthlyIncome), 2) AS avg_monthly_income FROM data GROUP BY JobRole ORDER BY avg_monthly_income DESC",
+      "description": "Average MonthlyIncome grouped by JobRole. Highlights compensation disparities across roles.",
+      "sql_query": "SELECT JobRole, AVG(MonthlyIncome) AS avg_income FROM data GROUP BY JobRole ORDER BY avg_income DESC",
       "chart_type": "barChart",
-      "reasoning": "A bar chart visually contrasts salary levels across the various categorical roles in the organization."
+      "reasoning": "Compensation analysis is fundamental in HR, and JobRole is a natural categorical dimension for comparison."
     },
     {
-      "name": "Income Progression by Working Years",
-      "description": "Tracks how monthly income scales with total working years to understand career-progression and tenure-based compensation trends.",
-      "sql_query": "SELECT TotalWorkingYears, ROUND(AVG(MonthlyIncome), 2) AS avg_monthly_income FROM data GROUP BY TotalWorkingYears ORDER BY TotalWorkingYears ASC",
+      "name": "Job Satisfaction Distribution",
+      "description": "Count of employees by JobSatisfaction score (1-4). Identifies overall satisfaction trends.",
+      "sql_query": "SELECT JobSatisfaction, COUNT(*) AS employee_count FROM data GROUP BY JobSatisfaction ORDER BY JobSatisfaction",
+      "chart_type": "barChart",
+      "reasoning": "Job satisfaction is a key HR metric, and the 4-point scale is well-suited for a bar chart showing distribution."
+    },
+    {
+      "name": "Attrition Rate by Years Since Last Promotion",
+      "description": "Percentage of employees who left (Attrition = 'Yes') grouped by YearsSinceLastPromotion. Reveals if promotion delays correlate with turnover.",
+      "sql_query": "SELECT YearsSinceLastPromotion, COUNT(*) AS total_employees, SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) AS attrition_count, (SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS attrition_rate FROM data GROUP BY YearsSinceLastPromotion ORDER BY YearsSinceLastPromotion",
       "chart_type": "lineChart",
-      "reasoning": "Total working years acts as a continuous time-like or sequential axis, making a line chart ideal for displaying progression trends."
+      "reasoning": "YearsSinceLastPromotion is a time-like ordinal variable, making a line chart ideal for visualizing trends in attrition over time."
     },
     {
-      "name": "Role-Level Retention Risk Matrix",
-      "description": "A comprehensive table that correlates average job satisfaction, overtime prevalence, average promotion intervals, and actual attrition rate by job role to detect risk factors.",
-      "sql_query": "SELECT JobRole, COUNT(*) AS total_employees, ROUND(AVG(JobSatisfaction), 2) AS avg_job_satisfaction, ROUND(SUM(CASE WHEN OverTime = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS overtime_rate, ROUND(AVG(YearsSinceLastPromotion), 2) AS avg_years_since_promotion, ROUND(SUM(CASE WHEN Attrition = 'Yes' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*), 2) AS attrition_rate FROM data GROUP BY JobRole ORDER BY attrition_rate DESC",
-      "chart_type": "table",
-      "reasoning": "A detailed table enables HR teams to view multiple concurrent metrics (satisfaction, overtime, and promotion delays) alongside attrition rate to diagnose underlying issues."
+      "name": "Overall Attrition Rate",
+      "description": "Percentage of all employees who left the company (Attrition = 'Yes'). A single summary metric for workforce stability.",
+      "sql_query": "SELECT (SUM(CASE WHEN Attrition = 'Yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) AS overall_attrition_rate FROM data",
+      "chart_type": "card",
+      "reasoning": "A single summary number is best displayed as a card, providing a quick snapshot of overall attrition."
     }
   ]
 }
