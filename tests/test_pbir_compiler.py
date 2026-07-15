@@ -473,6 +473,168 @@ class TestSQLToDaxWrappedRatioExpressions:
             )
 
 
+class TestSQLToDaxCaseWhenToIf:
+    """
+    GENERAL CASE WHEN -> DAX IF translation (2026-07-13): SQL's CASE WHEN is
+    functionally SQL's IF -- IF has been on the approved basic-DAX list
+    (SUM, AVERAGE, COUNT, DIVIDE, IF) since the start of the project, but
+    until now the only recognized CASE WHEN shape was the narrow 0/1
+    count-percentage idiom (see TestSQLToDaxRoundAndCountStar /
+    TestSQLToDaxWrappedRatioExpressions above). This adds a general path
+    for a single-condition CASE WHEN <cond> THEN <a> ELSE <b> END, whether
+    bare, wrapped in SUM/AVG (a conditional aggregate, not a percentage),
+    or wrapped in ROUND(...) -- via DAX's row-context iterator
+    SUMX/AVERAGEX around a per-row IF(...), or a direct IF(...) with no
+    iterator when there's no surrounding aggregation at all.
+
+    Every SQL string below is hand-written for the shape it targets, using
+    invented column names -- these do not exercise any dataset fixture.
+    """
+
+    def test_sum_wrapped_case_when_column_branches(self):
+        """The canonical motivating example: a conditional SUM (not a
+        percentage) where both THEN and ELSE are literal/column values."""
+        t = translate(
+            "SELECT SUM(CASE WHEN Amount > 50 THEN Amount ELSE 0 END) AS conditional_total FROM data",
+            "data",
+        )
+        assert t.expression == "SUMX('data', IF('data'[Amount] > 50, 'data'[Amount], 0))"
+        assert t.aggregation == "SUMX"
+
+    def test_avg_wrapped_case_when(self):
+        """AVERAGEX for consistency with SUMX, same as the pre-existing
+        row-wise product support (SUM(a*b)/AVG(a*b))."""
+        t = translate(
+            "SELECT AVG(CASE WHEN Amount > 50 THEN Amount ELSE 0 END) AS avg_conditional FROM data",
+            "data",
+        )
+        assert t.expression == "AVERAGEX('data', IF('data'[Amount] > 50, 'data'[Amount], 0))"
+        assert t.aggregation == "AVERAGEX"
+
+    def test_bare_case_when_no_surrounding_aggregate(self):
+        """No SUM/AVG at all -- translates directly to IF(...), no
+        row-context iterator needed."""
+        t = translate(
+            "SELECT CASE WHEN Region = 'North' THEN 1 ELSE 0 END AS is_north FROM data",
+            "data",
+        )
+        assert t.expression == 'IF(\'data\'[Region] = "North", 1, 0)'
+        assert t.aggregation == "IF"
+
+    def test_numeric_comparison_operator(self):
+        """A non-equality comparison operator (>=) against a numeric value,
+        confirming _SQL_TO_DAX_OP's operator mapping is reused correctly."""
+        t = translate(
+            "SELECT SUM(CASE WHEN PriorityLevel >= 3 THEN Amount ELSE 0 END) AS high_priority_total FROM data",
+            "data",
+        )
+        assert t.expression == (
+            "SUMX('data', IF('data'[PriorityLevel] >= 3, 'data'[Amount], 0))"
+        )
+
+    def test_round_wrapped_case_when(self):
+        """ROUND(...) wrapping a CASE-WHEN-based SUM -- composes with the
+        pre-existing ROUND-unwrapping path exactly like every other
+        _translate_core shape."""
+        t = translate(
+            "SELECT ROUND(SUM(CASE WHEN Amount > 50 THEN Amount ELSE 0 END), 2) AS rounded_total FROM data",
+            "data",
+        )
+        assert t.expression == (
+            "ROUND(SUMX('data', IF('data'[Amount] > 50, 'data'[Amount], 0)), 2)"
+        )
+        assert t.aggregation == "ROUND"
+
+    def test_case_when_inside_group_by(self):
+        """A CASE-WHEN-based conditional SUM as a chart's single grouped
+        aggregate -- exercises _extract_single_grouped_aggregate_expr's
+        single-agg-item path, not just the no-GROUP-BY Case 3 path."""
+        t = translate(
+            "SELECT Region, SUM(CASE WHEN Amount > 50 THEN Amount ELSE 0 END) AS conditional_total "
+            "FROM data GROUP BY Region ORDER BY conditional_total DESC",
+            "data",
+        )
+        assert t.expression == "SUMX('data', IF('data'[Amount] > 50, 'data'[Amount], 0))"
+
+    def test_where_clause_combined_with_case_when(self):
+        """A WHERE clause alongside a CASE-WHEN-based measure -- confirms
+        _apply_where_filter's CALCULATE(...) wrapper composes correctly
+        with the new SUMX/IF expression, same as every other shape."""
+        t = translate(
+            "SELECT SUM(CASE WHEN Amount > 50 THEN Amount ELSE 0 END) AS total "
+            "FROM data WHERE Region = 'North'",
+            "data",
+        )
+        assert t.expression == (
+            "CALCULATE(SUMX('data', IF('data'[Amount] > 50, 'data'[Amount], 0)), "
+            '\'data\'[Region] = "North")'
+        )
+
+    def test_quoted_identifiers_in_case_when(self):
+        """BUG FIX 7.1a orthogonality: double-quoted identifiers inside a
+        CASE WHEN must be normalized the same as everywhere else in the
+        translator, since _normalize_identifiers runs before any
+        shape-matcher (including the new CASE WHEN ones) ever sees the SQL."""
+        t = translate(
+            'SELECT SUM(CASE WHEN "Amount" > 50 THEN "Amount" ELSE 0 END) AS total FROM data',
+            "data",
+        )
+        assert t.expression == "SUMX('data', IF('data'[Amount] > 50, 'data'[Amount], 0))"
+
+    def test_existing_percentage_idiom_still_takes_priority(self):
+        """REGRESSION GUARD: the specific 0/1-count-percentage idiom (see
+        _CONDITIONAL_PCT_RE) must still be tried BEFORE the new general
+        CASE WHEN path, and must still win -- the general path must never
+        shadow it and produce a plain SUMX(IF(...)) instead of the
+        idiomatic FILTER/COUNTROWS percentage form."""
+        t = translate(
+            "SELECT SUM(CASE WHEN StatusFlag = 'Active' THEN 1.0 ELSE 0.0 END) * 100.0 "
+            "/ COUNT(*) AS rate FROM data",
+            "data",
+        )
+        assert t.aggregation == "DIVIDE"
+        assert t.is_percentage is True
+        assert "COUNTROWS(FILTER(" in t.expression
+
+    def test_multi_when_case_not_recognized(self):
+        """Only a single-condition CASE WHEN...THEN...ELSE...END is
+        recognized -- a multi-WHEN CASE (a second WHEN branch) falls
+        through to the standard unsupported-shape error, same as any
+        other not-yet-seen shape in this translator."""
+        with pytest.raises(SQLToDaxError):
+            translate(
+                "SELECT SUM(CASE WHEN Amount > 100 THEN 2 WHEN Amount > 50 THEN 1 ELSE 0 END) "
+                "AS tiered FROM data",
+                "data",
+            )
+
+    def test_arithmetic_in_then_branch_not_recognized(self):
+        """then_val/else_val must be a bare number or bare column reference
+        only -- an arithmetic expression in a branch (Amount * 2) is not a
+        recognized shape and must fall through to the standard
+        unsupported-shape error rather than being silently mistranslated."""
+        with pytest.raises(SQLToDaxError):
+            translate(
+                "SELECT SUM(CASE WHEN Amount > 50 THEN Amount * 2 ELSE 0 END) AS total FROM data",
+                "data",
+            )
+
+    def test_case_when_item_alongside_plain_aggregate_in_table_kpi(self):
+        """translate_multi() keeps a CASE-WHEN-based measure as its own
+        sibling alongside an independent plain aggregate in a table KPI --
+        confirms the new shape composes through translate_multi's existing
+        item-classification regex without any change needed there."""
+        translations = translate_multi(
+            "SELECT Region, COUNT(*) AS n, "
+            "SUM(CASE WHEN Amount > 50 THEN Amount ELSE 0 END) AS conditional_total "
+            "FROM data GROUP BY Region",
+            "data",
+        )
+        assert len(translations) == 2
+        aggregations = {t.aggregation for t in translations}
+        assert aggregations == {"COUNTROWS", "SUMX"}
+
+
 class TestSQLToDaxUnsupportedShapes:
     def test_row_wise_product_supported(self):
         t = translate("SELECT SUM(UnitsSold * UnitCost) AS revenue FROM data", "data")

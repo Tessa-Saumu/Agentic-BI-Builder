@@ -222,6 +222,67 @@ _CONDITIONAL_PCT_RE = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
+# GENERAL CASE WHEN -> DAX IF translation (2026-07-13). SQL's CASE WHEN is
+# functionally SQL's IF -- and IF has been on the approved basic-DAX list
+# (SUM, AVERAGE, COUNT, DIVIDE, IF) since the very start of this project,
+# but until now only ONE narrow CASE WHEN shape was ever recognized (the
+# percentage idiom above) -- a bare conditional value, or one nested inside
+# SUM/AVG for something other than a 0/1 count-percentage (e.g. "SUM(CASE
+# WHEN Total > 50 THEN Total ELSE 0 END)" -- a conditional SUM, not a
+# percentage), had no translation path at all. This closes that gap.
+#
+# Only a single "<column> <op> <value> THEN <then_val> ELSE <else_val> END"
+# CASE WHEN is recognized -- both <then_val>/<else_val> may be a bare
+# number OR a column reference (needed for "THEN Total ELSE 0", where the
+# true-branch is a column, not a literal). Multi-WHEN CASE statements are
+# NOT recognized and fall through to the standard unsupported-shape error,
+# same as every other not-yet-seen shape in this translator.
+_CASE_WHEN_RE = re.compile(
+    r"""^CASE\s+WHEN\s+
+        (?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*(?P<op>>=|<=|!=|<>|>|<|=)\s*'?(?P<val>[^'\s]+?)'?\s*
+        THEN\s+(?P<then_val>[A-Za-z0-9_.]+)\s+ELSE\s+(?P<else_val>[A-Za-z0-9_.]+)\s+END
+    $""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _case_when_to_dax_if(case_expr: str, table_name: str) -> str | None:
+    """
+    Translates a single CASE WHEN <cond> THEN <a> ELSE <b> END expression
+    (as matched by _CASE_WHEN_RE) into DAX's IF(<cond>, <a>, <b>). Returns
+    None if case_expr doesn't match the recognized single-condition shape.
+    A bare identifier for then_val/else_val is treated as a column
+    reference ('table'[col]); anything else (a bare number) is passed
+    through as a literal DAX value unchanged.
+    """
+    m = _CASE_WHEN_RE.match(case_expr.strip())
+    if not m:
+        return None
+
+    col = m.group("col")
+    op = _SQL_TO_DAX_OP.get(m.group("op"))
+    if op is None:
+        return None
+    val = m.group("val")
+    try:
+        float(val)
+        dax_val = val
+    except ValueError:
+        dax_val = f'"{val}"'
+
+    def _branch(raw: str) -> str:
+        try:
+            float(raw)
+            return raw
+        except ValueError:
+            return f"'{table_name}'[{raw}]"
+
+    then_branch = _branch(m.group("then_val"))
+    else_branch = _branch(m.group("else_val"))
+
+    return f"IF('{table_name}'[{col}] {op} {dax_val}, {then_branch}, {else_branch})"
+
+
 # Heuristic: column names commonly representing money, used to attach the
 # PBI_FormatHint currency template (§2.12) and a currency formatString.
 _CURRENCY_COLUMN_HINTS = {"total", "price", "cost", "revenue", "amount", "sales", "income"}
@@ -482,6 +543,45 @@ def _translate_core(stripped: str, table_name: str) -> DaxTranslation:
             aggregation="DISTINCTCOUNT",
             source_column=col,
         )
+
+    # GENERAL CASE WHEN -> IF translation (2026-07-13): SUM/AVG wrapping a
+    # CASE WHEN that is NOT the specific 0/1-count-percentage idiom above
+    # (e.g. "SUM(CASE WHEN Total > 50 THEN Total ELSE 0 END)" -- a
+    # conditional SUM, not a percentage). Checked after the percentage
+    # idiom (more specific, wins when it matches) and before the plain
+    # single-aggregate match (whose regex wouldn't match "CASE WHEN..."
+    # as a column name anyway, but this is checked first for clarity).
+    # DAX has no CASE WHEN in expression position -- the correct
+    # translation is the row-context iterator SUMX/AVERAGEX wrapping a
+    # per-row IF(...), the same pattern as the SUMX/AVERAGEX row-wise
+    # product support above.
+    case_wrapped_match = re.match(
+        r"^(?P<agg>SUM|AVG)\s*\(\s*(?P<case_expr>CASE\s+WHEN\s+.+?\s+END)\s*\)$",
+        stripped,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if case_wrapped_match:
+        dax_if = _case_when_to_dax_if(case_wrapped_match.group("case_expr"), table_name)
+        if dax_if is not None:
+            agg = case_wrapped_match.group("agg").lower()
+            dax_func = _ROWWISE_AGG_MAP[agg]
+            return DaxTranslation(
+                expression=f"{dax_func}('{table_name}', {dax_if})",
+                aggregation=dax_func,
+                source_column="__case_when__",
+            )
+
+    # A bare CASE WHEN, with no surrounding SUM/AVG at all -- translates
+    # directly to DAX IF(...), no row-context iterator needed since there's
+    # no aggregation wrapping it.
+    if stripped.upper().startswith("CASE"):
+        dax_if = _case_when_to_dax_if(stripped, table_name)
+        if dax_if is not None:
+            return DaxTranslation(
+                expression=dax_if,
+                aggregation="IF",
+                source_column="__case_when__",
+            )
 
     # SCOPE EXTENSION (2026-07-12): SUM(ColA * ColB) / AVG(ColA * ColB) --
     # see the _ROWWISE_PRODUCT_RE / _ROWWISE_AGG_MAP comment above for why
