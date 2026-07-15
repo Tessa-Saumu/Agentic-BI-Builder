@@ -1029,19 +1029,72 @@ theme); `Percent` is a tint/shade adjustment (negative = darker).
 
 ---
 
-### 4.1 Known issue outside this document's scope (tracked here for visibility)
+### 4.1 Known issue outside this document's scope — investigated, defensively mitigated
 
 Not a PBIR-format fact, and not something the serialiser is responsible for
-— flagged here only so it doesn't get lost. During report-generation
-debugging, a generated visual's title rendered as **"Average Monthly Income
-by Department by Department"** — a trailing `"by {category}"` appears to get
-appended onto a measure/KPI name that already ends in `"by Department"`.
-Cosmetic only (doesn't affect load, data, or structure), and the bug lives
-in the **title-construction logic in `builder.py`** (title text is an input
-*to* `visual.json`'s `visualContainerObjects.title`, per §2.8 — the
-serialiser just places whatever title string it's given verbatim; it has no
-title-composition logic of its own to fix). Worth a find in `builder.py`'s
-title logic on a future polish pass; out of scope for the serialiser itself.
+— tracked here because it took real investigation to place correctly.
+During report-generation debugging, a generated visual's title rendered as
+**"Average Monthly Income by Department by Department"**. Cosmetic only
+(doesn't affect load, data, or structure).
+
+**Correction to an earlier version of this note:** this was first assumed
+to be a "title-builder appending `by {category}`" bug living in
+`builder.py`. Having since read `builder.py`, `serialiser.py`, and
+`domain_kpi.py` end to end, **that's not what's happening — there is no
+string concatenation, `.format()`, or f-string anywhere in any of the three
+that appends `"by {category}"` (or anything else) onto a title or KPI
+name.** Specifically:
+
+- `domain_kpi.py`'s `run_domain_kpi()` never builds `kpi.name` itself — it's
+  whatever free-form string the LLM returns for that field, passed through
+  (`state.kpi_specs = result.kpi_specs`) with no post-processing. The
+  module's own system prompt explicitly *models* `"by <dimension>"` as
+  good KPI-name phrasing (its worked example is literally `"Total Revenue
+  by Country"`) — so a name ending in `"by Department"` is the LLM doing
+  exactly what it was asked to do, not a defect.
+- `builder.py`'s `_build_visuals()` (pre-fix) set `title=kpi.name` — a bare
+  passthrough, no transformation.
+- `serialiser.py`'s `_visual_container_objects()` places whatever
+  `title_text` it's given straight into the `text` literal — also a bare
+  passthrough.
+
+**This was also checked against all 3 real KPI-generation outputs
+available** (`chinook_kpis.json`, `hr_kpis.json`, `online_retail_kpis.json`)
+and **none of their 15 KPI names contain this duplication** — the closest
+is `hr_kpis.json`'s `"Average Monthly Income by Job Role"`, grouped by Job
+Role, not Department, so it isn't the same KPI as the one that showed the
+bug. The exact triggering name was generated on a different LLM run than
+any sample available for inspection here.
+
+**Most likely explanation, unconfirmed:** the LLM-generated name already
+ended in `"by Department"`, and Power BI Desktop's own category-axis title
+rendering for grouped visuals appended a second, independently-generated
+`"by {category}"` on top of the static title text — a naming collision
+between LLM phrasing and a Desktop UI convention, not a pipeline bug. This
+remains unconfirmed since it would need a Desktop-rendered screenshot (or
+the exact triggering KPI name) to verify against; treat it as the leading
+theory, not an established fact.
+
+**What's actually been done, since the true root cause can't be confirmed
+from this codebase:** a **defensive guard**, not a root-cause fix, has been
+added in `builder.py` — `_dedupe_trailing_by_phrase()`, applied to the
+`title` field only in `_build_visuals()`. It collapses an exact trailing
+`"...by X by X"` repeat (case-insensitive, loop-collapses 3+ repeats) down
+to a single `"...by X"`, and leaves every other name — including one with
+two genuinely different trailing `"by"` phrases, e.g. `"Revenue by Country
+by Region"` — completely untouched. Verified against all 15 real KPI names
+across the 3 uploaded files plus 10 synthetic edge cases (the exact bug
+string, a case variation, a triple repeat, trailing whitespace, a
+`"Nearby"` word-boundary trap, empty input) before being wired in; deployed
+as a single-line change (`title=kpi.name` → `title=_dedupe_trailing_by_phrase(kpi.name)`)
+plus one new helper function, with `visual_id`, `measure_ref`, and
+`category_ref` left keyed off the original, untouched `kpi.name` exactly as
+before. **If the true mechanism is confirmed to be Desktop's own title
+auto-generation** (rather than the LLM ever producing a literally duplicated
+name), this guard would still help in the case where an LLM name coincides
+with Desktop's convention, but the more complete fix at that point would be
+in how the compiler requests/sets the title, not just cleaning up its text
+after the fact — worth revisiting if this resurfaces.
 
 ---
 
