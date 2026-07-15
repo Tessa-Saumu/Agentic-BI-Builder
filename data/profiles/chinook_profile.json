@@ -2,7 +2,7 @@
   "source_path": "data\\raw\\chinook.csv",
   "source_table": null,
   "row_count": 412,
-  "column_count": 14,
+  "column_count": 13,
   "is_single_row": false,
   "columns": {
     "InvoiceId": {
@@ -194,22 +194,6 @@
         6,
         9,
         14
-      ],
-      "is_all_null": false
-    },
-    "primary_genre": {
-      "inferred_dtype": "string",
-      "null_count": 0,
-      "null_rate": 0.0,
-      "distinct_count": 18,
-      "min_value": null,
-      "max_value": null,
-      "sample_values": [
-        "Rock",
-        "Rock",
-        "Rock",
-        "Rock",
-        "Metal"
       ],
       "is_all_null": false
     },

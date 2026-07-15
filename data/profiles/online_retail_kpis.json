@@ -1,8 +1,8 @@
 {
   "domain_hypothesis": {
     "domain": "e-commerce retail",
-    "confidence": 0.95,
-    "reasoning": "The dataset contains typical e-commerce retail columns such as InvoiceNo (transaction identifier), StockCode (product identifier), Quantity, UnitPrice, InvoiceDate (transaction timestamp), CustomerID, and Country. The presence of these fields strongly suggests a retail sales domain, likely tracking online or offline transactions."
+    "confidence": 0.98,
+    "reasoning": "The dataset contains columns typical of e-commerce retail transactions: InvoiceNo (transaction identifier), StockCode (product identifier), Description (product description), Quantity (items purchased), InvoiceDate (transaction timestamp), UnitPrice (product price), CustomerID (customer identifier), and Country (geographic market). The presence of these fields strongly suggests a retail sales domain, likely tracking online or offline purchases."
   },
   "kpi_specs": [
     {
@@ -14,10 +14,10 @@
     },
     {
       "name": "Revenue by Country",
-      "description": "Total revenue (Quantity * UnitPrice) grouped by Country, identifying top revenue-generating markets.",
+      "description": "Total revenue (Quantity * UnitPrice) grouped by Country, identifying the top-performing geographic markets.",
       "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Country ORDER BY revenue DESC",
       "chart_type": "barChart",
-      "reasoning": "Revenue by country is critical for understanding geographic performance. A bar chart effectively compares revenue across countries, which is a low-cardinality categorical dimension."
+      "reasoning": "Revenue by country is critical for understanding geographic performance. A bar chart effectively compares revenue across the low-cardinality 'Country' dimension."
     },
     {
       "name": "Monthly Revenue Trend",
@@ -29,7 +29,7 @@
     {
       "name": "Average Order Value (AOV)",
       "description": "Average revenue per transaction (InvoiceNo), calculated as total revenue divided by the number of unique invoices.",
-      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS avg_order_value FROM data",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data",
       "chart_type": "card",
       "reasoning": "AOV is a key retail metric for understanding customer spending behavior. A 'card' visual is appropriate for this single summary value."
     },
