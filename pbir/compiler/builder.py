@@ -1244,6 +1244,75 @@ def _build_measures_and_group_cols(
     return measures_by_kpi, group_col_by_kpi
 
 
+# DEFENSIVE FIX (2026-07-15): observed once in Desktop as a rendered visual
+# title reading "Average Monthly Income by Department by Department" -- an
+# LLM-generated KPI name (agent/domain_kpi.py's SYSTEM_PROMPT explicitly
+# models "by <dimension>" as good KPI-name phrasing, e.g. its own worked
+# example "Total Revenue by Country") appears to have collided with Power
+# BI Desktop's own category-axis title convention for grouped visuals,
+# producing a doubled "by X" in the rendered title text.
+#
+# IMPORTANT -- this was NOT reproduced against any of the 3 uploaded KPI
+# JSON files (chinook/hr/online_retail): none of their 15 KPI names contain
+# this duplication, and the closest name in hr_kpis.json is "Average
+# Monthly Income by Job Role" (grouped by Job Role, not Department) -- a
+# different KPI than the one in the report. The observed bug therefore
+# came from a different LLM generation run than any sample available here.
+# Since domain_kpi.py's kpi.name is free-form LLM text with no code-level
+# template that appends "by <group>" (confirmed by reading that module end
+# to end -- result.kpi_specs passes through run_domain_kpi() unmodified),
+# this can't be fixed by removing a concatenation step, because there isn't
+# one to remove. What CAN be done here, defensively, without knowing the
+# exact triggering name: guard the one place a KPI name becomes a visual's
+# DISPLAYED title against this specific shape, in case the LLM (or a future
+# run) produces a name that already ends in the same "by <phrase>" twice.
+#
+# Scope, deliberately narrow:
+#   - Touches ONLY the `title` field written to Visual -- never `visual_id`
+#     (still built from the untouched kpi.name via visual_slug(), whose
+#     internals aren't available here to inspect -- see the fixes-log
+#     precedent with filter_id() for why an unfamiliar ID-generation
+#     helper's input shouldn't be changed without visibility into it),
+#     never `measure_ref`, and never the `measures_by_kpi` /
+#     `group_col_by_kpi` dict lookups two lines above and below this
+#     change -- all of those still key off kpi.name exactly as before, so
+#     no measure/category binding can be affected by this.
+#   - Only collapses an EXACT trailing repeat ("...by X by X", case-
+#     insensitive) -- verified against a 20-case suite covering every real
+#     KPI name across all 3 uploaded JSON files plus synthetic edge cases
+#     (triple repeats, trailing whitespace, a "Nearby" word-boundary trap,
+#     empty string) before being wired in here. A name with two DIFFERENT
+#     trailing "by" phrases (e.g. "Revenue by Country by Region") is
+#     provably left untouched -- confirmed in that same test suite -- since
+#     that's a legitimate two-level grouping, not a duplication bug.
+#   - Applied via a small standalone helper (_dedupe_trailing_by_phrase),
+#     not inlined, so it can be unit-tested in isolation the same way this
+#     module's other fixes (7.1a/7.1b, the CASE WHEN work) already are.
+_TRAILING_BY_DUP_RE = re.compile(
+    r"""^(?P<base>.*\bby\s+(?P<phrase>.+?))\s+by\s+(?P=phrase)\s*$""",
+    re.IGNORECASE,
+)
+
+
+def _dedupe_trailing_by_phrase(name: str) -> str:
+    """
+    Collapses an exact trailing "by <phrase> by <phrase>" repeat (case-
+    insensitive match; the kept copy's original casing is preserved) down
+    to a single "by <phrase>". Applied in a loop so a triple-or-higher
+    repeat fully collapses rather than leaving one duplicate behind. Any
+    name without this exact trailing-duplicate shape -- including a name
+    with two DIFFERENT "by X" / "by Y" phrases -- is returned completely
+    unchanged. See the FIX note above this function for the incident that
+    prompted it and the test suite it was verified against.
+    """
+    current = name.strip()
+    while True:
+        m = _TRAILING_BY_DUP_RE.match(current)
+        if not m:
+            return current
+        current = m.group("base")
+
+
 def _build_visuals(
     kpi_specs: list[KPISpec],
     measures_by_kpi: dict[str, list[Measure]],
@@ -1265,7 +1334,7 @@ def _build_visuals(
             Visual(
                 visual_id=visual_slug(kpi.name, kpi.chart_type),
                 chart_type=kpi.chart_type,
-                title=kpi.name,
+                title=_dedupe_trailing_by_phrase(kpi.name),
                 measure_ref=measures[0].name,
                 category_ref=group_col_by_kpi.get(kpi.name),
                 entity=table_name,
