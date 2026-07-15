@@ -1,14 +1,28 @@
 """
 scripts/prepare_chinook_csv.py
 
-Reads the 4 tables specified for this project (Invoice, InvoiceLine,
-Track, Artist) from the Chinook SQLite database, joins them into one
-analysis-ready dataframe, and exports the result to data/raw/chinook.csv --
-the CSV path this project's CSV-only PBIR compiler expects (chinook.sqlite
-itself is never read by the compiler; this script is the one-time bridge
-between the SQLite source and the CSV the rest of the pipeline uses).
+Reads the 4 tables specified (Invoice, InvoiceLine, Track, Artist)
+from the Chinook SQLite database, joins them into one analysis-ready
+dataframe, and exports the result to data/raw/chinook.csv -- the CSV path
+this project's CSV-only PBIR compiler expects (chinook.sqlite itself is
+never read by the compiler; this script is the one-time bridge between the
+SQLite source and the CSV the rest of the pipeline uses).
 
-GRAIN DECISION (mentor-confirmed): the output has ONE ROW PER INVOICE, not
+Only these 4 named tables are joined, plus Album -- see "WHY ALBUM IS READ"
+below for why that 5th table is unavoidable, not a choice. No other table
+(e.g. Genre) is read. 
+
+WHY ALBUM IS READ (referentially required, not a choice): Track does not
+join directly to Artist in the real schema (confirmed against the actual
+chinook.sqlite schema) -- the only path is:
+    InvoiceLine.TrackId -> Track.TrackId
+    Track.AlbumId       -> Album.AlbumId
+    Album.ArtistId      -> Artist.ArtistId
+There is no way to join Track to Artist -- which the spec explicitly
+requires, naming both tables -- without Album as an intermediate table.
+This is a hard schema fact, not a judgment call about scope.
+
+GRAIN DECISION: the output has ONE ROW PER INVOICE, not
 one row per invoice line. This matters because:
 
   - Invoice.Total, Invoice.InvoiceDate, Invoice.BillingCountry, etc. are
@@ -21,22 +35,16 @@ one row per invoice line. This matters because:
     that grain would repeat each invoice's Total once per line item --
     SUM(Total) over such a join would silently overcount revenue by a
     factor of however many lines that invoice had, breaking every existing
-    KPI without any error or warning.
-  - So: InvoiceLine/Track/Album/Artist/Genre are joined and then
-    AGGREGATED back down to one row per InvoiceId (track_count,
-    distinct_artists_purchased, distinct_tracks_purchased, primary_genre,
-    primary_artist) BEFORE being merged onto Invoice. This keeps every
-    existing Invoice-level column and KPI exactly as-is, while adding new
-    music-catalog context columns for future KPIs that want them.
-
-JOIN PATH NOTE: Track does not join directly to Artist. The real path
-(confirmed against the actual chinook.sqlite schema) is:
-    InvoiceLine.TrackId -> Track.TrackId
-    Track.AlbumId       -> Album.AlbumId
-    Album.ArtistId      -> Artist.ArtistId
-Album (and Genre, for primary_genre) are therefore also read, even though
-they weren't named explicitly -- there is no way to reach Artist from
-Track without Album as an intermediate table.
+    KPI without any error or warning. A raw line-grain join is therefore
+    NOT "analysis-ready" by itself -- getting to something that actually
+    deserves that name is what requires the aggregation step below.
+  - So: InvoiceLine/Track/Album/Artist are joined and then AGGREGATED back
+    down to one row per InvoiceId (track_count, distinct_artists_purchased,
+    distinct_tracks_purchased, primary_artist) BEFORE being merged onto
+    Invoice. This keeps every existing Invoice-level column and KPI
+    exactly as-is, while adding music-catalog context columns derivable
+    from exactly the 4 named tables plus the join-path-required Album --
+    nothing beyond that.
 
 Usage:
     python -m scripts.prepare_chinook_csv
@@ -60,9 +68,10 @@ DEFAULT_OUTPUT_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "raw", "chinook.csv")
 )
 
-# The 9 original Invoice columns, unchanged, plus the 5 new aggregated
-# music-catalog columns this script adds. Used by validate_output() to
-# confirm nothing is silently missing from the exported CSV.
+# The 9 original Invoice columns, unchanged, plus 4 new aggregated
+# music-catalog columns derived from InvoiceLine/Track/Album/Artist. Used
+# by validate_output() to confirm nothing is silently missing from the
+# exported CSV.
 EXPECTED_COLUMNS = [
     "InvoiceId",
     "CustomerId",
@@ -76,18 +85,16 @@ EXPECTED_COLUMNS = [
     "track_count",
     "distinct_artists_purchased",
     "distinct_tracks_purchased",
-    "primary_genre",
     "primary_artist",
 ]
 
 
 def _read_tables(sqlite_path: str) -> dict[str, pd.DataFrame]:
     """
-    Reads Invoice, InvoiceLine, Track, Artist -- the 4 tables specified for
-    this project -- plus Album and Genre, which are structurally required
-    to join Track to Artist and to resolve genre names (see module
-    docstring's JOIN PATH NOTE). Album/Genre are read-through infrastructure
-    for the join, not separate deliverables of their own.
+    Reads exactly Invoice, InvoiceLine, Track, Artist -- the 4 tables
+    specified -- plus Album, which is read solely because it is
+    the only path from Track to Artist in the real schema (see module
+    docstring's "WHY ALBUM IS READ"). No other table is read.
     """
     if not os.path.exists(sqlite_path):
         raise FileNotFoundError(f"Chinook SQLite database not found at: {sqlite_path}")
@@ -100,7 +107,6 @@ def _read_tables(sqlite_path: str) -> dict[str, pd.DataFrame]:
             "Track": pd.read_sql_query("SELECT * FROM Track", conn),
             "Artist": pd.read_sql_query("SELECT * FROM Artist", conn),
             "Album": pd.read_sql_query("SELECT * FROM Album", conn),
-            "Genre": pd.read_sql_query("SELECT * FROM Genre", conn),
         }
     finally:
         conn.close()
@@ -109,16 +115,15 @@ def _read_tables(sqlite_path: str) -> dict[str, pd.DataFrame]:
 
 def _build_line_item_join(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """
-    Joins InvoiceLine -> Track -> Album -> Artist -> Genre at invoice-LINE
-    grain (one row per InvoiceLine, matching InvoiceLine's own row count --
-    every Track has exactly one Album and one Genre, and every Album has
-    exactly one Artist, so none of these joins fan out). This is an
-    intermediate result, aggregated back to invoice grain by
-    _aggregate_to_invoice_grain() below -- never exported or merged onto
-    Invoice at this grain.
+    Joins InvoiceLine -> Track -> Album -> Artist at invoice-LINE grain
+    (one row per InvoiceLine, matching InvoiceLine's own row count --
+    every Track has exactly one Album, and every Album has exactly one
+    Artist, so neither join fans out). This is an intermediate result,
+    aggregated back to invoice grain by _aggregate_to_invoice_grain()
+    below -- never exported or merged onto Invoice at this grain.
     """
     line_items = tables["InvoiceLine"].merge(
-        tables["Track"][["TrackId", "AlbumId", "GenreId"]], on="TrackId", how="left"
+        tables["Track"][["TrackId", "AlbumId"]], on="TrackId", how="left"
     )
     line_items = line_items.merge(
         tables["Album"][["AlbumId", "ArtistId"]], on="AlbumId", how="left"
@@ -128,24 +133,19 @@ def _build_line_item_join(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         on="ArtistId",
         how="left",
     )
-    line_items = line_items.merge(
-        tables["Genre"][["GenreId", "Name"]].rename(columns={"Name": "GenreName"}),
-        on="GenreId",
-        how="left",
-    )
     return line_items
 
 
 def _mode_with_alphabetical_tiebreak(series: pd.Series) -> object:
     """
-    Returns the most frequent value in `series` (e.g. the genre/artist with
-    the most line items on a given invoice). Ties are broken
-    alphabetically by value, not by insertion/row order, so the result is
-    deterministic across repeated runs regardless of the original row
-    order in the SQLite tables -- pandas' own Series.mode() already
-    returns ties in sorted order, so sorting again here is redundant but
-    kept explicit rather than relying on that implementation detail
-    silently continuing to hold in a future pandas version.
+    Returns the most frequent value in `series` (e.g. the artist with the
+    most line items on a given invoice). Ties are broken alphabetically by
+    value, not by insertion/row order, so the result is deterministic
+    across repeated runs regardless of the original row order in the
+    SQLite tables -- pandas' own Series.mode() already returns ties in
+    sorted order, so sorting again here is redundant but kept explicit
+    rather than relying on that implementation detail silently continuing
+    to hold in a future pandas version.
     """
     counts = series.value_counts()
     top_count = counts.iloc[0]
@@ -165,7 +165,6 @@ def _aggregate_to_invoice_grain(line_items: pd.DataFrame) -> pd.DataFrame:
         distinct_artists_purchased=("ArtistId", "nunique"),
         distinct_tracks_purchased=("TrackId", "nunique"),
     )
-    summary["primary_genre"] = grouped["GenreName"].apply(_mode_with_alphabetical_tiebreak)
     summary["primary_artist"] = grouped["ArtistName"].apply(_mode_with_alphabetical_tiebreak)
     return summary.reset_index()
 
