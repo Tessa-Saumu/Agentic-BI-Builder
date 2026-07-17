@@ -8,6 +8,12 @@ import argparse
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed; fall back to whatever's already in the environment
+
 from agent.state import AgentState
 from agent.graph import build_graph
 
