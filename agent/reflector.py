@@ -17,10 +17,15 @@ that a purely mechanical SQL-execution check can't catch on its own:
 The Reflector runs on every KPI, not just failed ones, because a KPI can
 execute successfully and still be semantically wrong.
 
-For each flagged KPI with a fixed_sql_query, the fix is re-executed exactly
-once via sql_executor.rerun_single_kpi. If the retry still fails or is
-re-flagged, the KPI is dropped from state.kpi_specs / state.query_results —
-no second reflection pass, no further retries, to bound cost and latency.
+For each flagged KPI with a fixed_sql_query, run_reflector applies the fix
+text to the matching KPISpec.sql_query and records the KPI's name in
+state.kpis_to_retry — it does NOT execute the fix itself. Re-execution is
+graph-level routing (agent/graph.py's conditional edge after "reflector",
+to sql_executor.run_sql_executor_retry) rather than a direct call from this
+module, so that changing how a fix gets re-verified, or how many times it's
+retried, never requires editing this file. A flagged KPI with no
+fixed_sql_query offered is dropped immediately here, since there is nothing
+to retry.
 """
 from __future__ import annotations
 
@@ -31,7 +36,6 @@ from datetime import datetime, timezone
 from agent.domain_kpi import _profile_to_prompt_context
 from agent.llm_client import call_llm
 from agent.models import DataProfile, KPISpec, QueryResult, ReflectionNote, ReflectionResponse
-from agent.sql_executor import rerun_single_kpi
 from agent.state import AgentState
 
 # Cap on how many result rows from each QueryResult are included in the
@@ -175,16 +179,27 @@ def _log_reflection(dataset_name: str, notes: list[ReflectionNote], output_dir: 
 def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentState:
     """
     LangGraph node: review all KPIs + their QueryResults, flag issues, and
-    run one retry cycle for flagged KPIs with a concrete fix.
+    apply any offered fixes to the affected KPISpecs' SQL text.
 
-    Populates state.reflection_notes with whatever the LLM flagged (after
-    retries are resolved, notes reflect the final judgment — a KPI that was
-    successfully fixed is not re-flagged; state.reflection_notes documents
-    what was found and fixed/dropped, for audit purposes).
+    Populates state.reflection_notes with exactly what the LLM flagged, as
+    the permanent audit record of this reflection pass — unlike the
+    Phase 2 version of this node, these notes are NOT updated afterward to
+    reflect a retry outcome, because this node no longer knows the retry
+    outcome; that happens downstream, in sql_executor.run_sql_executor_retry.
 
-    KPIs whose one retry still fails (or has no fixed_sql_query offered) are
-    removed from both state.kpi_specs and state.query_results — per the
-    issue's "one retry only — then drop the KPI" instruction.
+    For each flagged KPI:
+      - if fixed_sql_query is provided: the matching KPISpec.sql_query is
+        updated to the fix text, and the KPI's name is added to
+        state.kpis_to_retry so agent/graph.py's conditional edge routes to
+        the retry-scoped SQL Executor next.
+      - if fixed_sql_query is None (the issue isn't fixable by a query
+        rewrite): the KPI is dropped from state.kpi_specs / state.query_results
+        immediately — there's nothing to retry, so no reason to wait for a
+        retry step to do the dropping.
+
+    This node performs NO execution and imports nothing from
+    agent/sql_executor — re-verifying a fix is graph-level routing, not a
+    call this module makes. See this module's docstring for why.
 
     Never raises: on any node-level failure (missing prerequisites, LLM call
     failure), appends to state.errors and returns state unchanged for the
@@ -214,59 +229,49 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
 
     notes = response.notes
     _log_reflection(dataset_name, notes)
+    state.reflection_notes = notes
 
     if not notes:
-        state.reflection_notes = notes
+        state.kpis_to_retry = []
         return state
 
     print(f"[Reflector] Applying fixes for {len(notes)} flagged KPI(s)...")
     results_by_name = {qr.kpi_name: qr for qr in state.query_results}
     kpis_by_name = {kpi.name: kpi for kpi in state.kpi_specs}
     dropped_kpi_names: set[str] = set()
+    kpis_to_retry: list[str] = []
 
     for note in notes:
         if note.kpi_name not in kpis_by_name:
             # LLM referenced a KPI name that doesn't exist in this run —
-            # nothing to retry, nothing to drop, just keep the note for audit.
+            # nothing to fix, nothing to drop, just keep the note for audit.
             continue
 
         if note.fixed_sql_query is None:
-            # No fix offered — per the issue, drop rather than retry with
-            # nothing changed (that would just fail again).
+            # No fix offered — drop immediately. There is nothing to retry,
+            # so unlike a fixed KPI this never touches kpis_to_retry.
             dropped_kpi_names.add(note.kpi_name)
             print(f"[Reflector] Dropping '{note.kpi_name}': no fix available for {note.issue_type}.")
             continue
 
-        print(f"[Reflector] Re-executing '{note.kpi_name}' with fixed SQL...")
-        try:
-            retry_result = rerun_single_kpi(state, note.kpi_name, note.fixed_sql_query)
-        except Exception as exc:
-            state.errors.append(
-                f"run_reflector: retry execution failed for KPI '{note.kpi_name}': {exc}"
-            )
-            dropped_kpi_names.add(note.kpi_name)
-            continue
-
-        if retry_result.status == "fail":
-            print(
-                f"[Reflector] Dropping '{note.kpi_name}': retry with fixed SQL still failed "
-                f"({retry_result.error_message})."
-            )
-            dropped_kpi_names.add(note.kpi_name)
-        else:
-            print(f"[Reflector] '{note.kpi_name}' fixed successfully on retry.")
-            results_by_name[note.kpi_name] = retry_result
-            # Keep the KPISpec's sql_query in sync with what actually ran,
-            # so downstream nodes (and any re-inspection) see the real query.
-            kpis_by_name[note.kpi_name] = kpis_by_name[note.kpi_name].model_copy(
-                update={"sql_query": note.fixed_sql_query}
-            )
+        # Apply the fix text now, so downstream (the retry-scoped SQL
+        # Executor, and pbir_compiler after it) sees the corrected query as
+        # the KPI's real sql_query — this node still owns "what should the
+        # corrected SQL be," it just no longer owns "did it work."
+        print(f"[Reflector] Applying fix for '{note.kpi_name}'; flagging for retry.")
+        kpis_by_name[note.kpi_name] = kpis_by_name[note.kpi_name].model_copy(
+            update={"sql_query": note.fixed_sql_query}
+        )
+        kpis_to_retry.append(note.kpi_name)
 
     state.kpi_specs = [kpi for name, kpi in kpis_by_name.items() if name not in dropped_kpi_names]
     state.query_results = [
         qr for name, qr in results_by_name.items() if name not in dropped_kpi_names
     ]
-    state.reflection_notes = notes
+    state.kpis_to_retry = kpis_to_retry
 
-    print(f"[Reflector] Done: {len(dropped_kpi_names)} KPI(s) dropped, {len(state.kpi_specs)} remaining.")
+    print(
+        f"[Reflector] Done: {len(dropped_kpi_names)} KPI(s) dropped (no fix available), "
+        f"{len(kpis_to_retry)} KPI(s) fixed and flagged for retry."
+    )
     return state
