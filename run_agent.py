@@ -5,6 +5,7 @@ Usage:
     python run_agent.py --input data/raw/chinook.csv --output output/chinook_report
 """
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -16,6 +17,8 @@ except ImportError:
 
 from agent.state import AgentState
 from agent.graph import build_graph
+from agent.domain_kpi import save_kpi_output
+from pbir.compiler.serialiser import write_pbip
 
 
 def _dataset_name_from_input(input_path: str) -> str:
@@ -65,7 +68,51 @@ def main():
     # this function.
     final_state = AgentState(**raw_result)
 
-    print(f"\n✅ Report written to: {final_state.output_path}")
+    # profile_datasets.py and run_domain_kpi_all.py write these when run as
+    # standalone scripts; run_agent.py runs the same nodes but never called
+    # either write, so data/profiles/ stayed empty. Same writes, same
+    # target directory, called here instead.
+    profiles_dir = "data/profiles"
+    os.makedirs(profiles_dir, exist_ok=True)
+
+    if final_state.data_profile is not None:
+        profile_path = os.path.join(profiles_dir, f"{dataset_name}_profile.json")
+        with open(profile_path, "w", encoding="utf-8") as f:
+            json.dump(final_state.data_profile.model_dump(), f, indent=2, default=str)
+        print(f"Profile written to: {profile_path}")
+
+    if final_state.domain_hypothesis is not None and final_state.kpi_specs:
+        kpi_path = save_kpi_output(final_state, dataset_name, output_dir=profiles_dir)
+        print(f"KPIs written to: {kpi_path}")
+
+    # write_pbip is called here, not inside agent/graph.py's "pbir_compiler"
+    # node, because run_pbir_compiler() only ever builds the in-memory
+    # PBIRProject — by builder.py's own module docstring, and by the Phase 3
+    # issue's own task list, serialising to disk is a deliberately separate
+    # function with its own signature (write_pbip(project, output_dir)).
+    # scripts/run_pbir_compiler_all.py already reflects that split by
+    # calling both steps separately in its own script body; this mirrors
+    # that same shape for run_agent.py's CLI entry point, keeping
+    # agent/graph.py limited to node wiring with no I/O of its own.
+    report_written = False
+    if final_state.pbir_project is not None:
+        print(f"\n[PBIR Compiler] Writing .pbip folder to '{final_state.output_path}'...")
+        try:
+            write_pbip(final_state.pbir_project, final_state.output_path)
+            report_written = True
+        except Exception as exc:
+            final_state.errors.append(f"run_agent: write_pbip failed: {exc}")
+
+    if report_written:
+        n_pages = len(final_state.pbir_project.pages)
+        n_visuals = sum(len(p.visuals) for p in final_state.pbir_project.pages)
+        print(
+            f"✅ Report written to: {final_state.output_path} "
+            f"({n_pages} page(s), {n_visuals} visual(s))"
+        )
+    else:
+        print(f"\n❌ No report was written to {final_state.output_path} "
+              f"— see errors below for why.")
 
     if final_state.node_timings:
         print("\n--- Timing ---")

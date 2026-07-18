@@ -1,27 +1,15 @@
 """
-LangGraph pipeline definition.
-Wires all nodes into the graph, including the conditional retry edge after
-"reflector": profiler -> domain_kpi -> sql_executor -> reflector ->
-[sql_executor_retry, if reflector flagged and fixed at least one KPI] OR
-[straight to pbir_compiler, if not] -> pbir_compiler.
+LangGraph pipeline: profiler -> domain_kpi -> sql_executor -> reflector ->
+[sql_executor_retry if flagged, else skip] -> resolve_source_path ->
+pbir_compiler.
 
-The retry endpoint (sql_executor_retry) never routes back to "reflector" —
-it has exactly one outgoing edge, straight to "pbir_compiler". This is what
-enforces "one retry only": there is no graph edge that could route a KPI
-through a second reflection or a second retry, so the guarantee comes from
-the graph's topology, not from a counter anywhere in state.
-
-reflector.py has no import of and makes no call to anything in
-sql_executor.py — it only writes state.kpis_to_retry, a plain list of KPI
-names. This graph is the only place that decides what "retry" means (which
-node runs, and how many times) — reflector.py's job is limited to deciding
-*whether* a KPI needs retrying and what its corrected SQL should be.
-
-Each node's wall-clock time is recorded into state.node_timings via
-time_node() below, so run_agent.py can report per-node and total timing
-without any node needing to know about timing itself.
+Retry is graph-level, not inside reflector.py — reflector only sets
+state.kpis_to_retry. sql_executor_retry has one outgoing edge (no path
+back to reflector), which is what makes "one retry only" hold.
 """
+import os
 import time
+from pathlib import Path
 from typing import Callable
 
 from langgraph.graph import StateGraph
@@ -33,21 +21,29 @@ from agent.reflector import run_reflector
 from pbir.compiler.builder import run_pbir_compiler
 
 
-def time_node(node_name: str, node_fn: Callable[[AgentState], AgentState]) -> Callable[[AgentState], AgentState]:
+def resolve_absolute_source_path(state: AgentState) -> AgentState:
     """
-    Wrap a LangGraph node function so its wall-clock execution time is
-    recorded into state.node_timings[node_name], in seconds.
+    Converts state.data_profile.source_path to an absolute path.
 
-    This is a wrapper around each node at graph-construction time, not a
-    change to any node itself -- profiler.py, domain_kpi.py, sql_executor.py,
-    reflector.py, and builder.py stay exactly as they are, with zero
-    awareness that timing exists. That separation is the point: timing is
-    cross-cutting infrastructure, not pipeline logic, so it shouldn't leak
-    into files whose job is profiling data or calling an LLM. It also means
-    every node is timed the same consistent way with one implementation,
-    rather than five node files each adding their own start/stop calls that
-    could drift out of sync with each other.
+    profiler.py stores source_path relative to the project root, but
+    serialiser.py writes it directly into Power Query's File.Contents(...),
+    which needs an absolute path — a relative one produces "supplied file
+    path must be a valid absolute path" in Power BI Desktop.
     """
+    if state.data_profile is None:
+        return state
+
+    raw_path = state.data_profile.source_path
+    if os.path.isabs(raw_path):
+        return state
+
+    abs_path = os.path.abspath(os.path.join(Path.cwd(), raw_path))
+    state.data_profile = state.data_profile.model_copy(update={"source_path": abs_path})
+    return state
+
+
+def time_node(node_name: str, node_fn: Callable[[AgentState], AgentState]) -> Callable[[AgentState], AgentState]:
+    """Wraps a node so its execution time lands in state.node_timings[node_name]."""
 
     def _wrapped(state: AgentState) -> AgentState:
         start = time.monotonic()
@@ -61,18 +57,7 @@ def time_node(node_name: str, node_fn: Callable[[AgentState], AgentState]) -> Ca
 
 
 def _route_after_reflection(state: AgentState) -> str:
-    """
-    Conditional-edge routing function for the edge out of "reflector".
-
-    Reads only state.kpis_to_retry — set exclusively by run_reflector,
-    listing KPI names whose SQL was fixed and needs re-execution before the
-    report is built. Empty means either no issues were found, or every
-    flagged issue had no available fix (those KPIs are already dropped by
-    run_reflector itself, so there's nothing left to retry).
-
-    Returns a node name, which graph.add_conditional_edges below maps to
-    the actual next node via its path map.
-    """
+    """Routes to sql_executor_retry if reflector flagged fixes, else straight to resolve_source_path."""
     return "sql_executor_retry" if state.kpis_to_retry else "pbir_compiler"
 
 
@@ -80,20 +65,9 @@ def build_graph(dataset_name: str = "dataset") -> StateGraph:
     """
     Build and compile the pipeline graph.
 
-    dataset_name is threaded in here (rather than left to run_reflector's
-    own default) because LangGraph calls every node as node_fn(state) only —
-    there's no mechanism to pass extra per-invocation kwargs like
-    dataset_name through graph.add_node / graph.invoke. Without this, every
-    dataset's run would silently fall back to run_reflector's
-    dataset_name="dataset" default, and every run's reflection log would
-    write to the same data/profiles/dataset_reflection.json, overwriting
-    the previous dataset's log instead of producing
-    data/profiles/chinook_reflection.json,
-    data/profiles/online_retail_reflection.json,
-    data/profiles/hr_analytics_reflection.json separately. Binding
-    dataset_name into a closure at graph-construction time is what makes
-    run_reflector's per-dataset behavior actually reachable through the
-    graph, since run_agent.py invokes the graph once per dataset anyway.
+    dataset_name is bound at construction time because LangGraph nodes
+    take only (state) — no per-invocation kwargs — so reflector's
+    dataset_name has to come from here, not a default.
     """
     graph = StateGraph(AgentState)
 
@@ -105,6 +79,7 @@ def build_graph(dataset_name: str = "dataset") -> StateGraph:
     graph.add_node("sql_executor", time_node("sql_executor", run_sql_executor))
     graph.add_node("reflector", time_node("reflector", _reflector_for_dataset))
     graph.add_node("sql_executor_retry", time_node("sql_executor_retry", run_sql_executor_retry))
+    graph.add_node("resolve_source_path", time_node("resolve_source_path", resolve_absolute_source_path))
     graph.add_node("pbir_compiler", time_node("pbir_compiler", run_pbir_compiler))
 
     graph.set_entry_point("profiler")
@@ -112,19 +87,18 @@ def build_graph(dataset_name: str = "dataset") -> StateGraph:
     graph.add_edge("domain_kpi", "sql_executor")
     graph.add_edge("sql_executor", "reflector")
 
-    # The conditional edge this module's docstring describes. Note there is
-    # no path map entry routing anywhere back to "reflector" or to
-    # "sql_executor_retry" a second time — that omission is what makes "one
-    # retry only" a property of the graph's shape, not of a counter.
+    # Both branches converge on resolve_source_path before pbir_compiler,
+    # and neither loops back to reflector or sql_executor_retry.
     graph.add_conditional_edges(
         "reflector",
         _route_after_reflection,
         {
             "sql_executor_retry": "sql_executor_retry",
-            "pbir_compiler": "pbir_compiler",
+            "pbir_compiler": "resolve_source_path",
         },
     )
-    graph.add_edge("sql_executor_retry", "pbir_compiler")
+    graph.add_edge("sql_executor_retry", "resolve_source_path")
+    graph.add_edge("resolve_source_path", "pbir_compiler")
 
     graph.set_finish_point("pbir_compiler")
 
