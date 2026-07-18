@@ -206,21 +206,53 @@ _ROUND_WRAPPER_RE = re.compile(
     re.IGNORECASE | re.VERBOSE | re.DOTALL,
 )
 
-# The conditional-count-percentage idiom:
+# The conditional-count-percentage idiom, in either of two SQL phrasings
+# that mean the same thing:
 #   SUM(CASE WHEN <col> = '<val>' THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(*)
-# This is the standard SQL "% of rows matching a condition" pattern. SQL's
-# CASE WHEN is functionally SQL's IF -- and IF is explicitly in the Measure
-# docstring's basic-DAX list -- so this is still within scope, translated to
-# DAX's FILTER/COUNTROWS idiom (DAX doesn't have inline CASE WHEN in this
-# position the way SQL does; FILTER+COUNTROWS is the standard equivalent).
-_CONDITIONAL_PCT_RE = re.compile(
-    r"""^\s*SUM\s*\(\s*CASE\s+WHEN\s+
-        (?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*'(?P<val>[^']*)'\s*
-        THEN\s+1(?:\.0)?\s+ELSE\s+0(?:\.0)?\s+END\s*\)
-        \s*\*\s*100(?:\.0)?\s*/\s*COUNT\s*\(\s*\*\s*\)
+#   (CAST(COUNT(CASE WHEN <col> = '<val>' THEN 1 END) AS FLOAT) / COUNT(*)) * 100
+# COUNT(CASE WHEN ... THEN 1 END) with no ELSE is equivalent to SUM(...THEN
+# 1.0 ELSE 0.0 END): COUNT skips the implicit NULL from the no-match
+# branch, so it counts exactly the matching rows -- same value, different
+# SQL idiom. Both translate to the same DAX FILTER/COUNTROWS idiom below.
+_MATCHING_ROW_COUNT_RE = re.compile(
+    r"""
+    (?:
+        SUM\s*\(\s*CASE\s+WHEN\s+(?P<col_a>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*'(?P<val_a>[^']*)'\s*
+            THEN\s+1(?:\.0)?\s+ELSE\s+0(?:\.0)?\s+END\s*\)
+        |
+        COUNT\s*\(\s*CASE\s+WHEN\s+(?P<col_b>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*'(?P<val_b>[^']*)'\s*
+            THEN\s+1\s+END\s*\)
+    )
     """,
     re.IGNORECASE | re.VERBOSE,
 )
+
+
+def _match_conditional_pct(stripped: str) -> tuple[str, str] | None:
+    """
+    Returns (col, val) if stripped is the conditional-count-percentage
+    idiom in either supported phrasing, else None. See
+    _MATCHING_ROW_COUNT_RE above for the two phrasings.
+    """
+    m = _MATCHING_ROW_COUNT_RE.match(stripped.strip())
+    if m:
+        rest = stripped.strip()[m.end():].strip()
+        if re.fullmatch(r"\*\s*100(?:\.0)?\s*/\s*COUNT\s*\(\s*\*\s*\)", rest, re.IGNORECASE):
+            return m.group("col_a") or m.group("col_b"), m.group("val_a") or m.group("val_b")
+
+    cast_prefix = re.match(r"^\(\s*CAST\s*\(\s*", stripped.strip(), re.IGNORECASE)
+    if cast_prefix:
+        inner = stripped.strip()[cast_prefix.end():]
+        m2 = _MATCHING_ROW_COUNT_RE.match(inner)
+        if m2:
+            rest = inner[m2.end():].strip()
+            if re.fullmatch(
+                r"AS\s+(?:FLOAT|REAL)\s*\)\s*/\s*COUNT\s*\(\s*\*\s*\)\s*\)\s*\*\s*100(?:\.0)?",
+                rest, re.IGNORECASE,
+            ):
+                return m2.group("col_a") or m2.group("col_b"), m2.group("val_a") or m2.group("val_b")
+
+    return None
 
 # GENERAL CASE WHEN -> DAX IF translation (2026-07-13). SQL's CASE WHEN is
 # functionally SQL's IF -- and IF has been on the approved basic-DAX list
@@ -488,10 +520,9 @@ def _translate_core(stripped: str, table_name: str) -> DaxTranslation:
     # Case 3 select_match.
     stripped = _strip_enclosing_parens(stripped)
 
-    cond_match = _CONDITIONAL_PCT_RE.match(stripped)
+    cond_match = _match_conditional_pct(stripped)
     if cond_match:
-        col = cond_match.group("col")
-        val = cond_match.group("val")
+        col, val = cond_match
         expression = (
             f"DIVIDE(COUNTROWS(FILTER('{table_name}', '{table_name}'[{col}] = \"{val}\")), "
             f"COUNTROWS('{table_name}')) * 100"
@@ -822,6 +853,16 @@ def _extract_single_grouped_aggregate_expr(stripped: str) -> str | None:
         # bug fix 7.1b: unwrap a redundant outer paren before classifying
         # the item -- see _unwrap_item_parens.
         item = _unwrap_item_parens(item.strip())
+
+        # Conditional-percentage idiom, checked first: its CAST-wrapped
+        # phrasing starts with "(CAST(...", not a bare SUM/AVG/COUNT/ROUND,
+        # so the general aggregate-prefix match below would never
+        # recognize it as an aggregate item at all.
+        alias_match = re.match(r"^(?P<expr>.+?)\s+AS\s+\w+$", item, re.IGNORECASE | re.DOTALL)
+        if alias_match and _match_conditional_pct(alias_match.group("expr")):
+            agg_items.append(alias_match.group("expr").strip())
+            continue
+
         m = re.match(r"^(?P<expr>(?:ROUND\s*\(.+?,\s*\d+\s*\)|(?:SUM|AVG|COUNT)\s*\(.+?\)))\s+AS\s+\w+$", item, re.IGNORECASE | re.DOTALL)
         if m:
             agg_items.append(m.group("expr").strip())
