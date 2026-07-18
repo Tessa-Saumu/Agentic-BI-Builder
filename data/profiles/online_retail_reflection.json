@@ -1,0 +1,13 @@
+{
+  "dataset": "online_retail",
+  "timestamp": "2026-07-18T19:17:24.668106+00:00",
+  "notes": [
+    {
+      "kpi_name": "Chronological Sales Trend",
+      "issue_type": "wrong_aggregation",
+      "description": "The query groups sales by the exact timestamp (including hours, minutes, and seconds), which is far too granular. Combined with LIMIT 100, this restricts the visualization to only a few hours of the first day (2010-12-01), failing to show a meaningful chronological trend over the dataset's duration.",
+      "fix_instruction": "Aggregate the data by day using the first 10 characters (YYYY-MM-DD) of the InvoiceDate column, group by this daily value, and order chronologically.",
+      "fixed_sql_query": "SELECT substr(InvoiceDate, 1, 10) AS InvoiceDate, SUM(Quantity * UnitPrice) AS sales_amount FROM data GROUP BY substr(InvoiceDate, 1, 10) ORDER BY InvoiceDate ASC"
+    }
+  ]
+}
