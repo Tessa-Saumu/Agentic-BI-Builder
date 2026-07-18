@@ -46,6 +46,8 @@ in addition to being used internally by write_pbip below.
 from __future__ import annotations
 
 import json
+import ntpath
+import posixpath
 import shutil
 from pathlib import Path
 
@@ -345,9 +347,21 @@ def _build_m_partition_source(csv_path: str, columns: list[Column]) -> str:
             #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {{"Age", Int64.Type}, ...})
         in
             #"Changed Type"
+
+    csv_path is resolved to an absolute path only if it's relative --
+    already-absolute paths (POSIX or Windows) are left untouched, since
+    Path.resolve() on a POSIX runner would mangle a Windows-style absolute
+    path (e.g. "C:\\Users\\...") rather than recognize it as already
+    resolved. A relative path fails to load in Power BI Desktop with
+    "supplied file path must be a valid absolute path", since Power Query's
+    File.Contents(...) has no notion of "relative to the .pbip file".
     """
     n_cols = len(columns)
-    m_path = _m_escape_text_literal(csv_path)
+    if posixpath.isabs(csv_path) or ntpath.isabs(csv_path):
+        abs_csv_path = csv_path
+    else:
+        abs_csv_path = str(Path(csv_path).resolve())
+    m_path = _m_escape_text_literal(abs_csv_path)
 
     type_pairs = ", ".join(
         f'{{"{_m_escape_text_literal(col.source_column)}", {dax_type_to_m_type(col.data_type)}}}'

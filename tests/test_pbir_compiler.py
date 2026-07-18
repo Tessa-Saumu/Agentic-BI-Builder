@@ -30,6 +30,8 @@ remains a manual verification step outside this suite.
 from __future__ import annotations
 
 import json
+import os
+import re
 import uuid
 
 import pytest
@@ -1258,6 +1260,24 @@ class TestTMDLFormatting:
 
         assert windows_path in source, "the exact single-backslash path must appear verbatim"
         assert "\\\\" not in source, "no doubled backslashes should ever appear in the M source"
+
+    def test_m_query_resolves_relative_path_to_absolute(self):
+        """
+        REGRESSION GUARD: profiler.py stores source_path relative to the
+        project root. Power Query's File.Contents(...) has no notion of
+        "relative to the .pbip file" -- a relative path here fails to load
+        in Power BI Desktop with "supplied file path must be a valid
+        absolute path". This confirms a relative input is resolved to an
+        absolute one, while test_m_query_never_doubles_windows_path_backslashes
+        above confirms an already-absolute path is left untouched.
+        """
+        relative_path = os.path.join("data", "raw", "synthetic.csv")
+        cols = [Column(name="Age", data_type="int64", source_column="Age")]
+        source = _build_m_partition_source(relative_path, cols)
+
+        match = re.search(r'File\.Contents\("(.+?)"\)', source)
+        assert match is not None, "expected a File.Contents(...) call in the generated M source"
+        assert os.path.isabs(match.group(1)), "the path inside File.Contents(...) must be absolute"
 
     def test_filter_names_never_collide_on_long_visual_ids(self):
         """
