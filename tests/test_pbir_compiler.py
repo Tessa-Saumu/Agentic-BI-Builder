@@ -51,6 +51,7 @@ from pbir.compiler.serialiser import (
     _build_m_partition_source,
     _build_table_tmdl,
     _local_filter_id,
+    _safe_visual_id,
     write_pbip,
 )
 from pbir.models.column import Column
@@ -1278,6 +1279,45 @@ class TestTMDLFormatting:
         match = re.search(r'File\.Contents\("(.+?)"\)', source)
         assert match is not None, "expected a File.Contents(...) call in the generated M source"
         assert os.path.isabs(match.group(1)), "the path inside File.Contents(...) must be absolute"
+
+    def test_safe_visual_id_truncates_over_50_chars(self):
+        """
+        REGRESSION GUARD: visual_slug() (pbir/models/common.py) has no
+        length cap, so a sufficiently long KPI name produces a visual_id
+        Desktop rejects outright: "The /name property ... exceeded its
+        maximum length" and "Invalid visual name ... must be between 1 and
+        50 characters". Observed on real Gemini-generated KPI names (not
+        Mistral's, whose shorter style never triggered this).
+        """
+        real_failing_names = [
+            "viz_departmental_retention_and_engagement_summary_table",
+            "viz_average_years_since_last_promotion_by_job_role_barchart",
+            "viz_job_satisfaction_trend_by_work_life_balance_rating_linechart",
+            "viz_top_10_primary_artists_by_sales_contribution_barchart",
+        ]
+        for name in real_failing_names:
+            assert len(name) > 50, f"fixture assumption broken: {name!r} is not actually over 50 chars"
+            result = _safe_visual_id(name)
+            assert len(result) <= 50, f"{name!r} truncated to {len(result)} chars, still over the limit"
+            assert result == name[:50], "truncation must keep the name's own prefix, not alter it"
+
+    def test_safe_visual_id_leaves_short_names_untouched(self):
+        """A visual_id already within the limit must not be altered."""
+        short_name = "viz_total_revenue_card"
+        assert len(short_name) <= 50
+        assert _safe_visual_id(short_name) == short_name
+
+    def test_safe_visual_id_is_deterministic(self):
+        """
+        Independent call sites in write_pbip (the visual's directory name
+        and its own visual.json "name") each call _safe_visual_id
+        separately rather than sharing one computed value -- this only
+        stays safe if the function is a pure, deterministic truncation
+        with no hidden state, so two independent calls on the same input
+        always agree.
+        """
+        name = "viz_job_satisfaction_trend_by_work_life_balance_rating_linechart"
+        assert _safe_visual_id(name) == _safe_visual_id(name)
 
     def test_filter_names_never_collide_on_long_visual_ids(self):
         """
