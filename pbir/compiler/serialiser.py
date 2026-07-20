@@ -563,6 +563,36 @@ def _local_filter_id(visual_id: str, idx: int, max_len: int = 50) -> str:
     return f"{base}{suffix}"
 
 
+def _safe_visual_id(visual_id: str, max_len: int = 50) -> str:
+    """
+    Truncates visual_id to Desktop's 50-char limit for the visual's own
+    name -- the same cap _local_filter_id above already respects for
+    derived filter names, but visual_id itself was never capped at its
+    source. visual_slug() (pbir/models/common.py) has no length limit, so
+    a sufficiently descriptive KPI name (more common from some LLM
+    providers than others) can produce a visual_id over 50 chars, which
+    Desktop rejects outright: "The /name property ... exceeded its maximum
+    length" plus "Invalid visual name ... must be between 1 and 50
+    characters".
+
+    No differentiating suffix is added (unlike _local_filter_id, which
+    needs one to keep multiple filters on the same visual apart) --
+    visual_id is already unique per KPI before truncation, and two KPI
+    names differing only after character 50 is not a case this project
+    has hit. If it ever is, this would need the same suffix-reservation
+    treatment _local_filter_id already uses.
+
+    Every caller of visual.visual_id must use this function's return
+    value consistently (visual directory name, visual.json's own "name",
+    and the visual_id passed into _filters_for_card /
+    _filters_for_category_y / _filters_for_table) -- using the raw,
+    untruncated visual_id in any one of these while truncating it in
+    another would make the visual's folder name, its JSON self-reference,
+    and its filter names disagree.
+    """
+    return visual_id[:max_len]
+
+
 def _card_query_state(entity: str, measure_name: str) -> dict:
     return {
         "Data": {
@@ -675,24 +705,25 @@ def _build_visual_json(visual: Visual, measure_names: list, category_is_date: bo
     """
     entity = visual.entity
     primary_measure = measure_names[0]
+    safe_visual_id = _safe_visual_id(visual.visual_id)
 
     if visual.chart_type == "card":
         query_state = _card_query_state(entity, primary_measure)
-        filters = _filters_for_card(entity, primary_measure, visual.visual_id)
+        filters = _filters_for_card(entity, primary_measure, safe_visual_id)
         sort = [sort_entry(entity, primary_measure, is_measure=True)]
         container_objects = _visual_container_objects(visual.title)
         objects: dict = {}
     elif visual.chart_type in ("barChart", "lineChart"):
         category_col = visual.category_ref or ""
         query_state = _category_y_query_state(entity, category_col, primary_measure)
-        filters = _filters_for_category_y(entity, category_col, primary_measure, visual.visual_id)
+        filters = _filters_for_category_y(entity, category_col, primary_measure, safe_visual_id)
         sort = [sort_entry(entity, primary_measure, is_measure=True)]
         container_objects = _visual_container_objects(visual.title)
         objects = {}
     elif visual.chart_type == "table":
         category_col = visual.category_ref
         query_state = _table_values_query_state(entity, category_col, measure_names)
-        filters = _filters_for_table(entity, category_col, measure_names, visual.visual_id)
+        filters = _filters_for_table(entity, category_col, measure_names, safe_visual_id)
         sort = None
         container_objects = _visual_container_objects(visual.title)
         objects = {}
@@ -705,7 +736,7 @@ def _build_visual_json(visual: Visual, measure_names: list, category_is_date: bo
 
     visual_dict = {
         "$schema": _VISUAL_CONTAINER_SCHEMA,
-        "name": visual.visual_id,
+        "name": safe_visual_id,
         "position": {
             "x": visual.position.x,
             "y": visual.position.y,
@@ -799,7 +830,7 @@ def write_pbip(project: PBIRProject, output_dir: Path) -> None:
         for visual in page.visuals:
             measure_names = _measure_names_for_visual(project, visual)
             visual_json = _build_visual_json(visual, measure_names, category_is_date=False)
-            visual_dir = page_dir / "visuals" / visual.visual_id
+            visual_dir = page_dir / "visuals" / _safe_visual_id(visual.visual_id)
             _write_json(visual_dir / "visual.json", visual_json)
 
     # --- .SemanticModel side ---
