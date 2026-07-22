@@ -1,25 +1,11 @@
 """
 tests/test_pbir_compiler.py -- the project's single unit/integration test
 suite for the PBIR Compiler (agent/models.py, agent/state.py,
-pbir/models/*, pbir/compiler/builder.py, pbir/compiler/serialiser.py).
-
-FIXTURE STRATEGY: unit tests must primarily verify
-this application's OWN behavior and stay independent of any particular
-external package/data implementation. Concretely here that means: no
-fixture in this file is built from a real dataset's KPI/profile JSON
-(chinook, HR, online_retail, or any future one). Every fixture below is a
-small, self-contained, INVENTED dataset -- synthetic column names, synthetic
-KPI SQL -- chosen only to exercise a specific shape or code path in this
-compiler. This keeps the suite from silently rotting every time an upstream
-KPI-generation run changes its SQL style or a dataset's KPI file gets
-regenerated (which has already happened once for real: see the SQL
-normalization bug fixes below), and it means every test failure here points
-at this application's own logic, never at "the fixture data changed."
-
-Everything lives in this one file by design -- the project convention is a
-single `test_pbir_compiler` suite, and there is no technical reason (pytest
-fixtures, classes, and plain data can all coexist in one module) that would
-force a split into separate fixture modules.
+pbir/models/*, and pbir/compiler/* -- builder.py and serialiser.py plus
+the modules they orchestrate: sql_to_dax.py, layout.py, templates.py,
+m_query.py, tmdl.py, visual_json.py). builder.py and serialiser.py
+re-export every name this suite imports from them below, so nothing
+here needed to change when that split happened.
 
 Structural checks only: folder tree shape, JSON validity, TMDL
 tab-indentation, cross-file ID consistency, and the acceptance criteria's
@@ -1280,6 +1266,7 @@ class TestTMDLFormatting:
         assert match is not None, "expected a File.Contents(...) call in the generated M source"
         assert os.path.isabs(match.group(1)), "the path inside File.Contents(...) must be absolute"
 
+class TestSafeVisualId:
     def test_safe_visual_id_truncates_over_50_chars(self):
         """
         REGRESSION GUARD: visual_slug() (pbir/models/common.py) has no
@@ -1318,7 +1305,7 @@ class TestTMDLFormatting:
         """
         name = "viz_job_satisfaction_trend_by_work_life_balance_rating_linechart"
         assert _safe_visual_id(name) == _safe_visual_id(name)
-
+        
     def test_filter_names_never_collide_on_long_visual_ids(self):
         """
         REGRESSION GUARD: a prior filter-naming scheme truncated the
