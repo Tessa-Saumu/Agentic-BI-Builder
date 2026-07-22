@@ -1,44 +1,44 @@
 {
   "domain_hypothesis": {
     "domain": "e-commerce retail",
-    "confidence": 0.98,
-    "reasoning": "The dataset contains columns typical of e-commerce retail transactions: InvoiceNo (transaction identifier), StockCode (product identifier), Description (product description), Quantity (items purchased), InvoiceDate (transaction timestamp), UnitPrice (product price), CustomerID (customer identifier), and Country (geographic market). The presence of these fields strongly suggests a retail sales domain, likely tracking online or offline purchases."
+    "confidence": 1.0,
+    "reasoning": "The dataset contains columns such as 'InvoiceNo', 'StockCode', 'Description', 'Quantity', 'InvoiceDate', 'UnitPrice', 'CustomerID', and 'Country', which are classic schemas for online retail transaction logs (specifically matching the UCI Online Retail dataset)."
   },
   "kpi_specs": [
     {
       "name": "Total Revenue",
-      "description": "Sum of all sales revenue (Quantity * UnitPrice) across all transactions, representing the business's top-line performance.",
+      "description": "Calculates the total sales revenue generated across all transactions by multiplying Quantity and UnitPrice.",
       "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data",
       "chart_type": "card",
-      "reasoning": "Total revenue is a fundamental KPI for retail businesses, providing a single summary metric of overall sales performance. A 'card' visual is ideal for displaying this single value."
+      "reasoning": "Total revenue is the primary financial metric for retail performance, best displayed as a single high-level summary card."
     },
     {
-      "name": "Revenue by Country",
-      "description": "Total revenue (Quantity * UnitPrice) grouped by Country, identifying the top-performing geographic markets.",
-      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Country ORDER BY revenue DESC",
-      "chart_type": "barChart",
-      "reasoning": "Revenue by country is critical for understanding geographic performance. A bar chart effectively compares revenue across the low-cardinality 'Country' dimension."
-    },
-    {
-      "name": "Monthly Revenue Trend",
-      "description": "Total revenue (Quantity * UnitPrice) aggregated by month to analyze sales trends over time.",
-      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS month, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY month ORDER BY month",
-      "chart_type": "lineChart",
-      "reasoning": "Tracking revenue over time is essential for identifying trends and seasonality. A line chart is the best visual for displaying temporal trends."
-    },
-    {
-      "name": "Average Order Value (AOV)",
-      "description": "Average revenue per transaction (InvoiceNo), calculated as total revenue divided by the number of unique invoices.",
-      "sql_query": "SELECT SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS average_order_value FROM data",
+      "name": "Total Unique Customers",
+      "description": "Measures the distinct number of customers who have made purchases, excluding null customer profiles.",
+      "sql_query": "SELECT COUNT(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL",
       "chart_type": "card",
-      "reasoning": "AOV is a key retail metric for understanding customer spending behavior. A 'card' visual is appropriate for this single summary value."
+      "reasoning": "Tracking the total active customer base is a fundamental growth metric, displayed cleanly on a summary card."
     },
     {
-      "name": "Top 10 Products by Revenue",
-      "description": "Top 10 products (StockCode) ranked by total revenue (Quantity * UnitPrice), highlighting best-selling items.",
-      "sql_query": "SELECT StockCode, Description, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY StockCode, Description ORDER BY revenue DESC LIMIT 10",
-      "chart_type": "table",
-      "reasoning": "Identifying top-performing products helps prioritize inventory and marketing efforts. A table is suitable for displaying ranked, multi-column data like product codes and descriptions."
+      "name": "Top 10 Countries by Revenue",
+      "description": "Identifies the top 10 countries generating the highest total sales revenue.",
+      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS total_revenue FROM data GROUP BY Country ORDER BY total_revenue DESC LIMIT 10",
+      "chart_type": "barChart",
+      "reasoning": "A bar chart is ideal for comparing sales performance across geographical regions, helping identify key market segments."
+    },
+    {
+      "name": "Top 10 Best Selling Products by Quantity",
+      "description": "Lists the top 10 products based on the total physical quantity sold.",
+      "sql_query": "SELECT Description, SUM(Quantity) AS total_quantity FROM data WHERE Description IS NOT NULL GROUP BY Description ORDER BY total_quantity DESC LIMIT 10",
+      "chart_type": "barChart",
+      "reasoning": "Visualizing product demand via a bar chart helps inventory managers quickly spot high-velocity inventory items."
+    },
+    {
+      "name": "Chronological Sales Trend",
+      "description": "Shows the chronological progression of sales amounts over time based on the invoice transaction timestamps.",
+      "sql_query": "SELECT substr(InvoiceDate, 1, 10) AS InvoiceDate, SUM(Quantity * UnitPrice) AS sales_amount FROM data GROUP BY substr(InvoiceDate, 1, 10) ORDER BY InvoiceDate ASC",
+      "chart_type": "lineChart",
+      "reasoning": "A line chart over sequential InvoiceDate timestamps captures transactional sales momentum without relying on non-standard SQL date functions."
     }
   ]
 }

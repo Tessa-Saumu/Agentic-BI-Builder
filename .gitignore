@@ -26,5 +26,5 @@ output/*/
 !output/.gitkeep
 
 # Data (comment out if you want to push sample CSVs)
-# data/raw/*.csv
+data/profiles/*     # ignore artifacts created by individual node runs 
 # data/raw/*.sqlite
