@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from agent.models import DataProfile, DomainHypothesis, KPISpec, QueryResult, ReflectionNote
+from pbir.models.project import PBIRProject
 
 
 class AgentState(BaseModel):
@@ -16,5 +17,5 @@ class AgentState(BaseModel):
     kpi_specs: List[KPISpec] = Field(default_factory=list)
     query_results: List[QueryResult] = Field(default_factory=list)
     reflection_notes: List[ReflectionNote] = Field(default_factory=list)
-    pbir_project: Optional[dict] = None
+    pbir_project: Optional[PBIRProject] = None
     errors: List[str] = Field(default_factory=list)

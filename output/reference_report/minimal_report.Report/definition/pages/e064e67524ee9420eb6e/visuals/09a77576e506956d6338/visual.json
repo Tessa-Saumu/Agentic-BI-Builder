@@ -2,8 +2,8 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
   "name": "09a77576e506956d6338",
   "position": {
-    "x": 499.48709358615724,
-    "y": 271.69902343422842,
+    "x": 89.194123854670934,
+    "y": 56.260908892946283,
     "z": 0,
     "height": 175.64381312919815,
     "width": 279.93232717465958,
@@ -278,5 +278,23 @@
       ]
     },
     "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "727e3430200492813fb3",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "in"
+              }
+            },
+            "Property": "Total Patients"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
   }
 }

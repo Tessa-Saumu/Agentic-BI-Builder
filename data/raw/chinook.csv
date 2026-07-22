@@ -1,0 +1,413 @@
+InvoiceId,CustomerId,InvoiceDate,BillingAddress,BillingCity,BillingState,BillingCountry,BillingPostalCode,Total,track_count,distinct_artists_purchased,distinct_tracks_purchased,primary_artist
+1,2,2009-01-01 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,1.98,2,1,2,Accept
+2,4,2009-01-02 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,3.96,4,1,4,AC/DC
+3,8,2009-01-03 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,5.94,6,2,6,Aerosmith
+4,14,2009-01-06 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,8.91,9,5,9,Alanis Morissette
+5,23,2009-01-11 00:00:00,69 Salem Street,Boston,MA,USA,2113,13.86,14,9,14,Audioslave
+6,37,2009-01-19 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,0.99,1,1,1,Chico Buarque
+7,38,2009-02-01 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,1.98,2,1,2,Chico Buarque
+8,40,2009-02-01 00:00:00,"8, Rue Hanovre",Paris,,France,75002,1.98,2,1,2,Chico Buarque
+9,42,2009-02-02 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,3.96,4,1,4,Chico Buarque
+10,46,2009-02-03 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,5.94,6,1,6,Chico Science & Nação Zumbi
+11,52,2009-02-06 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,8.91,9,3,9,Cidade Negra
+12,2,2009-02-11 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,13.86,14,8,14,Antônio Carlos Jobim
+13,16,2009-02-19 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,0.99,1,1,1,Spyro Gyra
+14,17,2009-03-04 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,1.98,2,1,2,Spyro Gyra
+15,19,2009-03-04 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,1.98,2,2,2,Green Day
+16,21,2009-03-05 00:00:00,801 W 4th Street,Reno,NV,USA,89503,3.96,4,1,4,Green Day
+17,25,2009-03-06 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,5.94,6,2,6,David Coverdale
+18,31,2009-03-09 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,8.91,9,5,9,Os Mutantes
+19,40,2009-03-14 00:00:00,"8, Rue Hanovre",Paris,,France,75002,13.86,14,7,14,Gene Krupa
+20,54,2009-03-22 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,0.99,1,1,1,Creedence Clearwater Revival
+21,55,2009-04-04 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,1.98,2,1,2,Creedence Clearwater Revival
+22,57,2009-04-04 00:00:00,"Calle Lira, 198",Santiago,,Chile,,1.98,2,1,2,Creedence Clearwater Revival
+23,59,2009-04-05 00:00:00,"3,Raj Bhavan Road",Bangalore,,India,560001,3.96,4,1,4,Creedence Clearwater Revival
+24,4,2009-04-06 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,5.94,6,2,6,Cássia Eller
+25,10,2009-04-09 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,8.91,9,2,9,Deep Purple
+26,19,2009-04-14 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,13.86,14,6,14,Deep Purple
+27,33,2009-04-22 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,0.99,1,1,1,Faith No More
+28,34,2009-05-05 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,1.98,2,1,2,Faith No More
+29,36,2009-05-05 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,1.98,2,1,2,Faith No More
+30,38,2009-05-06 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,3.96,4,1,4,Faith No More
+31,42,2009-05-07 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,5.94,6,1,6,Faith No More
+32,48,2009-05-10 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,8.91,9,3,9,Foo Fighters
+33,57,2009-05-15 00:00:00,"Calle Lira, 198",Santiago,,Chile,,13.86,14,7,14,Frank Sinatra
+34,12,2009-05-23 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,0.99,1,1,1,Guns N' Roses
+35,13,2009-06-05 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,1.98,2,1,2,Guns N' Roses
+36,15,2009-06-05 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,1.98,2,1,2,Guns N' Roses
+37,17,2009-06-06 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,3.96,4,1,4,Guns N' Roses
+38,21,2009-06-07 00:00:00,801 W 4th Street,Reno,NV,USA,89503,5.94,6,2,6,Guns N' Roses
+39,27,2009-06-10 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,8.91,9,1,9,Iron Maiden
+40,36,2009-06-15 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,13.86,14,1,14,Iron Maiden
+41,50,2009-06-23 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,0.99,1,1,1,Iron Maiden
+42,51,2009-07-06 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,1.98,2,1,2,Iron Maiden
+43,53,2009-07-06 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,1.98,2,1,2,Iron Maiden
+44,55,2009-07-07 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,3.96,4,1,4,Iron Maiden
+45,59,2009-07-08 00:00:00,"3,Raj Bhavan Road",Bangalore,,India,560001,5.94,6,2,6,James Brown
+46,6,2009-07-11 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,8.91,9,3,9,Jamiroquai
+47,15,2009-07-16 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,13.86,14,8,14,Led Zeppelin
+48,29,2009-07-24 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,0.99,1,1,1,Led Zeppelin
+49,30,2009-08-06 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,1.98,2,1,2,Led Zeppelin
+50,32,2009-08-06 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,1.98,2,1,2,Led Zeppelin
+51,34,2009-08-07 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,3.96,4,1,4,Led Zeppelin
+52,38,2009-08-08 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,5.94,6,1,6,Led Zeppelin
+53,44,2009-08-11 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,8.91,9,3,9,Legião Urbana
+54,53,2009-08-16 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,13.86,14,6,14,Metallica
+55,8,2009-08-24 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,0.99,1,1,1,Metallica
+56,9,2009-09-06 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,1.98,2,1,2,Metallica
+57,11,2009-09-06 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,1.98,2,1,2,Metallica
+58,13,2009-09-07 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,3.96,4,1,4,Metallica
+59,17,2009-09-08 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,5.94,6,1,6,Metallica
+60,23,2009-09-11 00:00:00,69 Salem Street,Boston,MA,USA,2113,8.91,9,4,9,Milton Nascimento
+61,32,2009-09-16 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,13.86,14,7,14,Os Paralamas Do Sucesso
+62,46,2009-09-24 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,0.99,1,1,1,Os Paralamas Do Sucesso
+63,47,2009-10-07 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,1.98,2,1,2,Os Paralamas Do Sucesso
+64,49,2009-10-07 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,1.98,2,1,2,Os Paralamas Do Sucesso
+65,51,2009-10-08 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,3.96,4,1,4,Ozzy Osbourne
+66,55,2009-10-09 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,5.94,6,2,6,Ozzy Osbourne
+67,2,2009-10-12 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,8.91,9,3,9,Pearl Jam
+68,11,2009-10-17 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,13.86,14,6,14,Pearl Jam
+69,25,2009-10-25 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,0.99,1,1,1,R.E.M.
+70,26,2009-11-07 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,1.98,2,1,2,R.E.M.
+71,28,2009-11-07 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,1.98,2,1,2,R.E.M.
+72,30,2009-11-08 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,3.96,4,1,4,R.E.M.
+73,34,2009-11-09 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,5.94,6,2,6,Raul Seixas
+74,40,2009-11-12 00:00:00,"8, Rue Hanovre",Paris,,France,75002,8.91,9,2,9,Red Hot Chili Peppers
+75,49,2009-11-17 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,13.86,14,8,14,Smashing Pumpkins
+76,4,2009-11-25 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,0.99,1,1,1,Stone Temple Pilots
+77,5,2009-12-08 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,1.98,2,1,2,Stone Temple Pilots
+78,7,2009-12-08 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,1.98,2,1,2,System Of A Down
+79,9,2009-12-09 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,3.96,4,1,4,System Of A Down
+80,13,2009-12-10 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,5.94,6,2,6,The Black Crowes
+81,19,2009-12-13 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,8.91,9,3,9,The Cult
+82,28,2009-12-18 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,13.86,14,5,14,The Rolling Stones
+83,42,2009-12-26 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,0.99,1,1,1,Titãs
+84,43,2010-01-08 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,1.98,2,1,2,Titãs
+85,45,2010-01-08 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,1.98,2,1,2,Titãs
+86,47,2010-01-09 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,3.96,4,1,4,Titãs
+87,51,2010-01-10 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,6.94,6,2,6,Titãs
+88,57,2010-01-13 00:00:00,"Calle Lira, 198",Santiago,,Chile,,17.91,9,3,9,Battlestar Galactica
+89,7,2010-01-18 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,18.86,14,2,14,U2
+90,21,2010-01-26 00:00:00,801 W 4th Street,Reno,NV,USA,89503,0.99,1,1,1,U2
+91,22,2010-02-08 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,1.98,2,1,2,U2
+92,24,2010-02-08 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,1.98,2,1,2,U2
+93,26,2010-02-09 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,3.96,4,1,4,U2
+94,30,2010-02-10 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,5.94,6,3,6,UB40
+95,36,2010-02-13 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,8.91,9,2,9,Van Halen
+96,45,2010-02-18 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,21.86,14,8,14,The Office
+97,59,2010-02-26 00:00:00,"3,Raj Bhavan Road",Bangalore,,India,560001,1.99,1,1,1,Battlestar Galactica (Classic)
+98,1,2010-03-11 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,3.98,2,1,2,Battlestar Galactica (Classic)
+99,3,2010-03-11 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,3.98,2,2,2,Aquaman
+100,5,2010-03-12 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,3.96,4,1,4,U2
+101,9,2010-03-13 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,5.94,6,2,6,Ozzy Osbourne
+102,15,2010-03-16 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,9.91,9,4,9,House Of Pain
+103,24,2010-03-21 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,15.86,14,11,14,Amy Winehouse
+104,38,2010-03-29 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,0.99,1,1,1,Calexico
+105,39,2010-04-11 00:00:00,"4, Rue Milton",Paris,,France,75009,1.98,2,2,2,Otto Klemperer & Philharmonia Orchestra
+106,41,2010-04-11 00:00:00,"11, Place Bellecour",Lyon,,France,69002,1.98,2,2,2,"Academy of St. Martin in the Fields, Sir Neville Marriner & Thurston Dart"
+107,43,2010-04-12 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,3.96,4,4,4,"Equale Brass Ensemble, John Eliot Gardiner & Munich Monteverdi Orchestra and Choir"
+108,47,2010-04-13 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,5.94,6,4,6,AC/DC
+109,53,2010-04-16 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,8.91,9,5,9,Aerosmith
+110,3,2010-04-21 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,13.86,14,8,14,Audioslave
+111,17,2010-04-29 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,0.99,1,1,1,Caetano Veloso
+112,18,2010-05-12 00:00:00,627 Broadway,New York,NY,USA,10012-2612,1.98,2,1,2,Caetano Veloso
+113,20,2010-05-12 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,1.98,2,1,2,Caetano Veloso
+114,22,2010-05-13 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,3.96,4,1,4,Caetano Veloso
+115,26,2010-05-14 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,5.94,6,2,6,Chico Buarque
+116,32,2010-05-17 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,8.91,9,2,9,Chico Science & Nação Zumbi
+117,41,2010-05-22 00:00:00,"11, Place Bellecour",Lyon,,France,69002,13.86,14,9,14,Various Artists
+118,55,2010-05-30 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,0.99,1,1,1,Kiss
+119,56,2010-06-12 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,1.98,2,1,2,Kiss
+120,58,2010-06-12 00:00:00,"12,Community Centre",Delhi,,India,110017,1.98,2,1,2,Kiss
+121,1,2010-06-13 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,3.96,4,1,4,Kiss
+122,5,2010-06-14 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,5.94,6,2,6,Green Day
+123,11,2010-06-17 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,8.91,9,5,9,Gonzaguinha
+124,20,2010-06-22 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,13.86,14,8,14,Deep Purple
+125,34,2010-06-30 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,0.99,1,1,1,Various Artists
+126,35,2010-07-13 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,1.98,2,1,2,Various Artists
+127,37,2010-07-13 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,1.98,2,1,2,Creedence Clearwater Revival
+128,39,2010-07-14 00:00:00,"4, Rue Milton",Paris,,France,75009,3.96,4,1,4,Creedence Clearwater Revival
+129,43,2010-07-15 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,5.94,6,1,6,Creedence Clearwater Revival
+130,49,2010-07-18 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,8.91,9,2,9,Cássia Eller
+131,58,2010-07-23 00:00:00,"12,Community Centre",Delhi,,India,110017,13.86,14,5,14,Deep Purple
+132,13,2010-07-31 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,0.99,1,1,1,Eric Clapton
+133,14,2010-08-13 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,1.98,2,1,2,Eric Clapton
+134,16,2010-08-13 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,1.98,2,1,2,Eric Clapton
+135,18,2010-08-14 00:00:00,627 Broadway,New York,NY,USA,10012-2612,3.96,4,1,4,Eric Clapton
+136,22,2010-08-15 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,5.94,6,2,6,Faith No More
+137,28,2010-08-18 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,8.91,9,3,9,Faith No More
+138,37,2010-08-23 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,13.86,14,6,14,Foo Fighters
+139,51,2010-08-31 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,0.99,1,1,1,Green Day
+140,52,2010-09-13 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,1.98,2,1,2,Green Day
+141,54,2010-09-13 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,1.98,2,1,2,Green Day
+142,56,2010-09-14 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,3.96,4,2,4,Green Day
+143,1,2010-09-15 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,5.94,6,1,6,Guns N' Roses
+144,7,2010-09-18 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,8.91,9,3,9,Iron Maiden
+145,16,2010-09-23 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,13.86,14,1,14,Iron Maiden
+146,30,2010-10-01 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,0.99,1,1,1,Iron Maiden
+147,31,2010-10-14 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,1.98,2,1,2,Iron Maiden
+148,33,2010-10-14 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,1.98,2,1,2,Iron Maiden
+149,35,2010-10-15 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,3.96,4,1,4,Iron Maiden
+150,39,2010-10-16 00:00:00,"4, Rue Milton",Paris,,France,75009,5.94,6,1,6,Iron Maiden
+151,45,2010-10-19 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,8.91,9,3,9,Jamiroquai
+152,54,2010-10-24 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,13.86,14,9,14,JET
+153,9,2010-11-01 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,0.99,1,1,1,Led Zeppelin
+154,10,2010-11-14 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,1.98,2,1,2,Led Zeppelin
+155,12,2010-11-14 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,1.98,2,1,2,Led Zeppelin
+156,14,2010-11-15 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,3.96,4,1,4,Led Zeppelin
+157,18,2010-11-16 00:00:00,627 Broadway,New York,NY,USA,10012-2612,5.94,6,1,6,Led Zeppelin
+158,24,2010-11-19 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,8.91,9,2,9,Led Zeppelin
+159,33,2010-11-24 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,13.86,14,8,14,Lulu Santos
+160,47,2010-12-02 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,0.99,1,1,1,Metallica
+161,48,2010-12-15 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,1.98,2,1,2,Metallica
+162,50,2010-12-15 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,1.98,2,1,2,Metallica
+163,52,2010-12-16 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,3.96,4,1,4,Metallica
+164,56,2010-12-17 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,5.94,6,1,6,Metallica
+165,3,2010-12-20 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,8.91,9,3,9,Metallica
+166,12,2010-12-25 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,13.86,14,8,14,Nirvana
+167,26,2011-01-02 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,0.99,1,1,1,Os Paralamas Do Sucesso
+168,27,2011-01-15 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,1.98,2,1,2,Os Paralamas Do Sucesso
+169,29,2011-01-15 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,1.98,2,1,2,Os Paralamas Do Sucesso
+170,31,2011-01-16 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,3.96,4,1,4,Os Paralamas Do Sucesso
+171,35,2011-01-17 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,5.94,6,2,6,Os Paralamas Do Sucesso
+172,41,2011-01-20 00:00:00,"11, Place Bellecour",Lyon,,France,69002,8.91,9,5,9,Passengers
+173,50,2011-01-25 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,13.86,14,5,14,Pearl Jam
+174,5,2011-02-02 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,0.99,1,1,1,R.E.M.
+175,6,2011-02-15 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,1.98,2,1,2,R.E.M.
+176,8,2011-02-15 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,1.98,2,1,2,R.E.M.
+177,10,2011-02-16 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,3.96,4,1,4,R.E.M.
+178,14,2011-02-17 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,5.94,6,2,6,R.E.M.
+179,20,2011-02-20 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,8.91,9,3,9,Red Hot Chili Peppers
+180,29,2011-02-25 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,13.86,14,7,14,Smashing Pumpkins
+181,43,2011-03-05 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,0.99,1,1,1,Spyro Gyra
+182,44,2011-03-18 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,1.98,2,1,2,Spyro Gyra
+183,46,2011-03-18 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,1.98,2,2,2,Spyro Gyra
+184,48,2011-03-19 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,3.96,4,1,4,Stevie Ray Vaughan & Double Trouble
+185,52,2011-03-20 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,5.94,6,3,6,Stone Temple Pilots
+186,58,2011-03-23 00:00:00,"12,Community Centre",Delhi,,India,110017,8.91,9,4,9,The Black Crowes
+187,8,2011-03-28 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,13.86,14,6,14,The Rolling Stones
+188,22,2011-04-05 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,0.99,1,1,1,Tim Maia
+189,23,2011-04-18 00:00:00,69 Salem Street,Boston,MA,USA,2113,1.98,2,1,2,Tim Maia
+190,25,2011-04-18 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,1.98,2,1,2,Tim Maia
+191,27,2011-04-19 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,3.96,4,1,4,Tim Maia
+192,31,2011-04-20 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,5.94,6,2,6,Titãs
+193,37,2011-04-23 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,14.91,9,3,9,Battlestar Galactica
+194,46,2011-04-28 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,21.86,14,2,14,Lost
+195,1,2011-05-06 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,0.99,1,1,1,U2
+196,2,2011-05-19 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,1.98,2,1,2,U2
+197,4,2011-05-19 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,1.98,2,1,2,U2
+198,6,2011-05-20 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,3.96,4,1,4,U2
+199,10,2011-05-21 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,5.94,6,1,6,U2
+200,16,2011-05-24 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,8.91,9,3,9,Van Halen
+201,25,2011-05-29 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,18.86,14,6,14,The Office
+202,39,2011-06-06 00:00:00,"4, Rue Milton",Paris,,France,75009,1.99,1,1,1,Heroes
+203,40,2011-06-19 00:00:00,"8, Rue Hanovre",Paris,,France,75002,2.98,2,2,2,Dread Zeppelin
+204,42,2011-06-19 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,3.98,2,1,2,Battlestar Galactica (Classic)
+205,44,2011-06-20 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,7.96,4,1,4,Battlestar Galactica (Classic)
+206,48,2011-06-21 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,8.94,6,2,6,Battlestar Galactica (Classic)
+207,54,2011-06-24 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,8.91,9,4,9,House Of Pain
+208,4,2011-06-29 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,15.86,14,11,14,Chris Cornell
+209,18,2011-07-07 00:00:00,627 Broadway,New York,NY,USA,10012-2612,0.99,1,1,1,Amy Winehouse
+210,19,2011-07-20 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,1.98,2,1,2,Amy Winehouse
+211,21,2011-07-20 00:00:00,801 W 4th Street,Reno,NV,USA,89503,1.98,2,1,2,Amy Winehouse
+212,23,2011-07-21 00:00:00,69 Salem Street,Boston,MA,USA,2113,3.96,4,1,4,Amy Winehouse
+213,27,2011-07-22 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,5.94,6,5,6,Amy Winehouse
+214,33,2011-07-25 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,8.91,9,5,9,AC/DC
+215,42,2011-07-30 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,13.86,14,9,14,Audioslave
+216,56,2011-08-07 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,0.99,1,1,1,Bruce Dickinson
+217,57,2011-08-20 00:00:00,"Calle Lira, 198",Santiago,,Chile,,1.98,2,1,2,Bruce Dickinson
+218,59,2011-08-20 00:00:00,"3,Raj Bhavan Road",Bangalore,,India,560001,1.98,2,1,2,Bruce Dickinson
+219,2,2011-08-21 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,3.96,4,2,4,Buddy Guy
+220,6,2011-08-22 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,5.94,6,2,6,Caetano Veloso
+221,12,2011-08-25 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,8.91,9,2,9,Chico Science & Nação Zumbi
+222,21,2011-08-30 00:00:00,801 W 4th Street,Reno,NV,USA,89503,13.86,14,7,14,Cidade Negra
+223,35,2011-09-07 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,0.99,1,1,1,Metallica
+224,36,2011-09-20 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,1.98,2,1,2,Metallica
+225,38,2011-09-20 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,1.98,2,1,2,Queen
+226,40,2011-09-21 00:00:00,"8, Rue Hanovre",Paris,,France,75002,3.96,4,1,4,Queen
+227,44,2011-09-22 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,5.94,6,2,6,Kiss
+228,50,2011-09-25 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,8.91,9,4,9,Green Day
+229,59,2011-09-30 00:00:00,"3,Raj Bhavan Road",Bangalore,,India,560001,13.86,14,9,14,Miles Davis
+230,14,2011-10-08 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,0.99,1,1,1,Toquinho & Vinícius
+231,15,2011-10-21 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,1.98,2,1,2,Toquinho & Vinícius
+232,17,2011-10-21 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,1.98,2,1,2,Toquinho & Vinícius
+233,19,2011-10-22 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,3.96,4,2,4,Toquinho & Vinícius
+234,23,2011-10-23 00:00:00,69 Salem Street,Boston,MA,USA,2113,5.94,6,2,6,Creedence Clearwater Revival
+235,29,2011-10-26 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,8.91,9,2,9,Cássia Eller
+236,38,2011-10-31 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,13.86,14,4,14,Deep Purple
+237,52,2011-11-08 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,0.99,1,1,1,Elis Regina
+238,53,2011-11-21 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,1.98,2,1,2,Elis Regina
+239,55,2011-11-21 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,1.98,2,1,2,Elis Regina
+240,57,2011-11-22 00:00:00,"Calle Lira, 198",Santiago,,Chile,,3.96,4,2,4,Elis Regina
+241,2,2011-11-23 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,5.94,6,1,6,Eric Clapton
+242,8,2011-11-26 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,8.91,9,1,9,Faith No More
+243,17,2011-12-01 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,13.86,14,5,14,Foo Fighters
+244,31,2011-12-09 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,0.99,1,1,1,Eric Clapton
+245,32,2011-12-22 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,1.98,2,1,2,Eric Clapton
+246,34,2011-12-22 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,1.98,2,1,2,Eric Clapton
+247,36,2011-12-23 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,3.96,4,2,4,Godsmack
+248,40,2011-12-24 00:00:00,"8, Rue Hanovre",Paris,,France,75002,5.94,6,3,6,Green Day
+249,46,2011-12-27 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,8.91,9,3,9,Guns N' Roses
+250,55,2012-01-01 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,13.86,14,1,14,Iron Maiden
+251,10,2012-01-09 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,0.99,1,1,1,Iron Maiden
+252,11,2012-01-22 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,1.98,2,1,2,Iron Maiden
+253,13,2012-01-22 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,1.98,2,1,2,Iron Maiden
+254,15,2012-01-23 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,3.96,4,1,4,Iron Maiden
+255,19,2012-01-24 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,5.94,6,1,6,Iron Maiden
+256,25,2012-01-27 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,8.91,9,3,9,Iron Maiden
+257,34,2012-02-01 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,13.86,14,9,14,Jamiroquai
+258,48,2012-02-09 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,0.99,1,1,1,Kiss
+259,49,2012-02-22 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,1.98,2,1,2,Led Zeppelin
+260,51,2012-02-22 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,1.98,2,1,2,Led Zeppelin
+261,53,2012-02-23 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,3.96,4,1,4,Led Zeppelin
+262,57,2012-02-24 00:00:00,"Calle Lira, 198",Santiago,,Chile,,5.94,6,1,6,Led Zeppelin
+263,4,2012-02-27 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,8.91,9,1,9,Led Zeppelin
+264,13,2012-03-03 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,13.86,14,7,14,Legião Urbana
+265,27,2012-03-11 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,0.99,1,1,1,Metallica
+266,28,2012-03-24 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,1.98,2,1,2,Metallica
+267,30,2012-03-24 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,1.98,2,1,2,Metallica
+268,32,2012-03-25 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,3.96,4,1,4,Metallica
+269,36,2012-03-26 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,5.94,6,1,6,Metallica
+270,42,2012-03-29 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,8.91,9,1,9,Metallica
+271,51,2012-04-03 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,13.86,14,7,14,Milton Nascimento
+272,6,2012-04-11 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,0.99,1,1,1,Olodum
+273,7,2012-04-24 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,1.98,2,1,2,Olodum
+274,9,2012-04-24 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,1.98,2,1,2,Os Paralamas Do Sucesso
+275,11,2012-04-25 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,3.96,4,1,4,Os Paralamas Do Sucesso
+276,15,2012-04-26 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,5.94,6,1,6,Os Paralamas Do Sucesso
+277,21,2012-04-29 00:00:00,801 W 4th Street,Reno,NV,USA,89503,8.91,9,4,9,Ozzy Osbourne
+278,30,2012-05-04 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,13.86,14,6,14,Pearl Jam
+279,44,2012-05-12 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,0.99,1,1,1,Queen
+280,45,2012-05-25 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,1.98,2,1,2,Queen
+281,47,2012-05-25 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,1.98,2,1,2,Queen
+282,49,2012-05-26 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,3.96,4,3,4,R.E.M. Feat. Kate Pearson
+283,53,2012-05-27 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,5.94,6,2,6,R.E.M.
+284,59,2012-05-30 00:00:00,"3,Raj Bhavan Road",Bangalore,,India,560001,8.91,9,5,9,R.E.M.
+285,9,2012-06-04 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,13.86,14,6,14,Red Hot Chili Peppers
+286,23,2012-06-12 00:00:00,69 Salem Street,Boston,MA,USA,2113,0.99,1,1,1,Smashing Pumpkins
+287,24,2012-06-25 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,1.98,2,2,2,Smashing Pumpkins
+288,26,2012-06-25 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,1.98,2,1,2,Soundgarden
+289,28,2012-06-26 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,3.96,4,1,4,Soundgarden
+290,32,2012-06-27 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,5.94,6,4,6,Spyro Gyra
+291,38,2012-06-30 00:00:00,Barbarossastraße 19,Berlin,,Germany,10779,8.91,9,5,9,The Black Crowes
+292,47,2012-07-05 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,13.86,14,6,14,The Rolling Stones
+293,2,2012-07-13 00:00:00,Theodor-Heuss-Straße 34,Stuttgart,,Germany,70174,0.99,1,1,1,The Who
+294,3,2012-07-26 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,1.98,2,1,2,The Who
+295,5,2012-07-26 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,1.98,2,1,2,The Who
+296,7,2012-07-27 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,3.96,4,1,4,The Who
+297,11,2012-07-28 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,5.94,6,1,6,Tim Maia
+298,17,2012-07-31 00:00:00,1 Microsoft Way,Redmond,WA,USA,98052-8300,10.91,9,3,9,Titãs
+299,26,2012-08-05 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,23.86,14,4,14,Lost
+300,40,2012-08-13 00:00:00,"8, Rue Hanovre",Paris,,France,75002,0.99,1,1,1,U2
+301,41,2012-08-26 00:00:00,"11, Place Bellecour",Lyon,,France,69002,1.98,2,1,2,U2
+302,43,2012-08-26 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,1.98,2,1,2,U2
+303,45,2012-08-27 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,3.96,4,1,4,U2
+304,49,2012-08-28 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,5.94,6,1,6,U2
+305,55,2012-08-31 00:00:00,421 Bourke Street,Sidney,NSW,Australia,2010,8.91,9,3,9,U2
+306,5,2012-09-05 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,16.86,14,7,14,Van Halen
+307,19,2012-09-13 00:00:00,1 Infinite Loop,Cupertino,CA,USA,95014,1.99,1,1,1,The Office
+308,20,2012-09-26 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,3.98,2,1,2,The Office
+309,22,2012-09-26 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,3.98,2,1,2,The Office
+310,24,2012-09-27 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,7.96,4,1,4,The Office
+311,28,2012-09-28 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,11.94,6,2,6,Battlestar Galactica (Classic)
+312,34,2012-10-01 00:00:00,Rua da Assunção 53,Lisbon,,Portugal,,10.91,9,5,9,U2
+313,43,2012-10-06 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,16.86,14,9,14,Lost
+314,57,2012-10-14 00:00:00,"Calle Lira, 198",Santiago,,Chile,,0.99,1,1,1,Chicago Symphony Orchestra & Fritz Reiner
+315,58,2012-10-27 00:00:00,"12,Community Centre",Delhi,,India,110017,1.98,2,2,2,"Emanuel Ax, Eugene Ormandy & Philadelphia Orchestra"
+316,1,2012-10-27 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,1.98,2,2,2,Academy of St. Martin in the Fields & Sir Neville Marriner
+317,3,2012-10-28 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,3.96,4,3,4,Michael Tilson Thomas & San Francisco Symphony
+318,7,2012-10-29 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,5.94,6,2,6,Amy Winehouse
+319,13,2012-11-01 00:00:00,Qe 7 Bloco G,Brasília,DF,Brazil,71020-677,8.91,9,7,9,AC/DC
+320,22,2012-11-06 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,13.86,14,9,14,Alanis Morissette
+321,36,2012-11-14 00:00:00,Tauentzienstraße 8,Berlin,,Germany,10789,0.99,1,1,1,Black Sabbath
+322,37,2012-11-27 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,1.98,2,1,2,Black Sabbath
+323,39,2012-11-27 00:00:00,"4, Rue Milton",Paris,,France,75009,1.98,2,2,2,Black Sabbath
+324,41,2012-11-28 00:00:00,"11, Place Bellecour",Lyon,,France,69002,3.96,4,1,4,Body Count
+325,45,2012-11-29 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,5.94,6,3,6,Bruce Dickinson
+326,51,2012-12-02 00:00:00,Celsiusg. 9,Stockholm,,Sweden,11230,8.91,9,3,9,Caetano Veloso
+327,1,2012-12-07 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,13.86,14,7,14,Various Artists
+328,15,2012-12-15 00:00:00,700 W Pender Street,Vancouver,BC,Canada,V6C 1G8,0.99,1,1,1,Antônio Carlos Jobim
+329,16,2012-12-28 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,1.98,2,1,2,Antônio Carlos Jobim
+330,18,2012-12-28 00:00:00,627 Broadway,New York,NY,USA,10012-2612,1.98,2,1,2,Antônio Carlos Jobim
+331,20,2012-12-29 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,3.96,4,1,4,Antônio Carlos Jobim
+332,24,2012-12-30 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,5.94,6,2,6,Queen
+333,30,2013-01-02 00:00:00,230 Elgin Street,Ottawa,ON,Canada,K2P 1L7,8.91,9,3,9,Kiss
+334,39,2013-01-07 00:00:00,"4, Rue Milton",Paris,,France,75009,13.86,14,9,14,Ed Motta
+335,53,2013-01-15 00:00:00,113 Lupus St,London,,United Kingdom,SW1V 3EN,0.99,1,1,1,Gene Krupa
+336,54,2013-01-28 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,1.98,2,1,2,Gene Krupa
+337,56,2013-01-28 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,1.98,2,1,2,Gene Krupa
+338,58,2013-01-29 00:00:00,"12,Community Centre",Delhi,,India,110017,3.96,4,1,4,Gene Krupa
+339,3,2013-01-30 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,5.94,6,3,6,Toquinho & Vinícius
+340,9,2013-02-02 00:00:00,Sønder Boulevard 51,Copenhagen,,Denmark,1720,8.91,9,3,9,Creedence Clearwater Revival
+341,18,2013-02-07 00:00:00,627 Broadway,New York,NY,USA,10012-2612,13.86,14,4,14,Deep Purple
+342,32,2013-02-15 00:00:00,696 Osborne Street,Winnipeg,MB,Canada,R3L 2B9,0.99,1,1,1,Djavan
+343,33,2013-02-28 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,1.98,2,1,2,Djavan
+344,35,2013-02-28 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,1.98,2,1,2,Djavan
+345,37,2013-03-01 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,3.96,4,1,4,Djavan
+346,41,2013-03-02 00:00:00,"11, Place Bellecour",Lyon,,France,69002,5.94,6,3,6,Elis Regina
+347,47,2013-03-05 00:00:00,"Via Degli Scipioni, 43",Rome,RM,Italy,00192,8.91,9,2,9,Faith No More
+348,56,2013-03-10 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,13.86,14,6,14,Foo Fighters
+349,11,2013-03-18 00:00:00,"Av. Paulista, 2022",São Paulo,SP,Brazil,01310-200,0.99,1,1,1,Gilberto Gil
+350,12,2013-03-31 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,1.98,2,1,2,Gilberto Gil
+351,14,2013-03-31 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,1.98,2,1,2,Gilberto Gil
+352,16,2013-04-01 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,3.96,4,1,4,Gilberto Gil
+353,20,2013-04-02 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,5.94,6,2,6,Eric Clapton
+354,26,2013-04-05 00:00:00,2211 W Berry Street,Fort Worth,TX,USA,76110,8.91,9,2,9,Guns N' Roses
+355,35,2013-04-10 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,13.86,14,2,14,Iron Maiden
+356,49,2013-04-18 00:00:00,Ordynacka 10,Warsaw,,Poland,00-358,0.99,1,1,1,Iron Maiden
+357,50,2013-05-01 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,1.98,2,1,2,Iron Maiden
+358,52,2013-05-01 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,1.98,2,1,2,Iron Maiden
+359,54,2013-05-02 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,3.96,4,1,4,Iron Maiden
+360,58,2013-05-03 00:00:00,"12,Community Centre",Delhi,,India,110017,5.94,6,1,6,Iron Maiden
+361,5,2013-05-06 00:00:00,Klanova 9/506,Prague,,Czech Republic,14700,8.91,9,1,9,Iron Maiden
+362,14,2013-05-11 00:00:00,8210 111 ST NW,Edmonton,AB,Canada,T6G 2C7,13.86,14,8,14,Jamiroquai
+363,28,2013-05-19 00:00:00,302 S 700 E,Salt Lake City,UT,USA,84102,0.99,1,1,1,Judas Priest
+364,29,2013-06-01 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,1.98,2,1,2,Judas Priest
+365,31,2013-06-01 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,1.98,2,1,2,Judas Priest
+366,33,2013-06-02 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,3.96,4,2,4,Kiss
+367,37,2013-06-03 00:00:00,Berger Straße 10,Frankfurt,,Germany,60316,5.94,6,2,6,Led Zeppelin
+368,43,2013-06-06 00:00:00,"68, Rue Jouvence",Dijon,,France,21000,8.91,9,1,9,Led Zeppelin
+369,52,2013-06-11 00:00:00,202 Hoxton Street,London,,United Kingdom,N1 5LH,13.86,14,6,14,Legião Urbana
+370,7,2013-06-19 00:00:00,"Rotenturmstraße 4, 1010 Innere Stadt",Vienne,,Austria,1010,0.99,1,1,1,Marvin Gaye
+371,8,2013-07-02 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,1.98,2,1,2,Marvin Gaye
+372,10,2013-07-02 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,1.98,2,2,2,Marvin Gaye
+373,12,2013-07-03 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,3.96,4,1,4,Men At Work
+374,16,2013-07-04 00:00:00,1600 Amphitheatre Parkway,Mountain View,CA,USA,94043-1351,5.94,6,1,6,Metallica
+375,22,2013-07-07 00:00:00,120 S Orange Ave,Orlando,FL,USA,32801,8.91,9,1,9,Metallica
+376,31,2013-07-12 00:00:00,194A Chain Lake Drive,Halifax,NS,Canada,B3S 1C5,13.86,14,7,14,Milton Nascimento
+377,45,2013-07-20 00:00:00,Erzsébet krt. 58.,Budapest,,Hungary,H-1073,0.99,1,1,1,O Terço
+378,46,2013-08-02 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,1.98,2,1,2,O Terço
+379,48,2013-08-02 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,1.98,2,1,2,O Terço
+380,50,2013-08-03 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,3.96,4,2,4,O Terço
+381,54,2013-08-04 00:00:00,110 Raeburn Pl,Edinburgh ,,United Kingdom,EH4 1HH,5.94,6,2,6,Olodum
+382,1,2013-08-07 00:00:00,"Av. Brigadeiro Faria Lima, 2170",São José dos Campos,SP,Brazil,12227-000,8.91,9,2,9,Os Paralamas Do Sucesso
+383,10,2013-08-12 00:00:00,"Rua Dr. Falcão Filho, 155",São Paulo,SP,Brazil,01007-010,13.86,14,6,14,Pearl Jam
+384,24,2013-08-20 00:00:00,162 E Superior Street,Chicago,IL,USA,60611,0.99,1,1,1,Planet Hemp
+385,25,2013-09-02 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,1.98,2,1,2,Planet Hemp
+386,27,2013-09-02 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,1.98,2,2,2,Planet Hemp
+387,29,2013-09-03 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,3.96,4,1,4,Queen
+388,33,2013-09-04 00:00:00,5112 48 Street,Yellowknife,NT,Canada,X1A 1N6,5.94,6,3,6,Queen
+389,39,2013-09-07 00:00:00,"4, Rue Milton",Paris,,France,75009,8.91,9,3,9,R.E.M.
+390,48,2013-09-12 00:00:00,Lijnbaansgracht 120bg,Amsterdam,VV,Netherlands,1016,13.86,14,6,14,Red Hot Chili Peppers
+391,3,2013-09-20 00:00:00,1498 rue Bélanger,Montréal,QC,Canada,H2G 1A7,0.99,1,1,1,Smashing Pumpkins
+392,4,2013-10-03 00:00:00,Ullevålsveien 14,Oslo,,Norway,0171,1.98,2,1,2,Smashing Pumpkins
+393,6,2013-10-03 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,1.98,2,1,2,Smashing Pumpkins
+394,8,2013-10-04 00:00:00,Grétrystraat 63,Brussels,,Belgium,1000,3.96,4,1,4,Smashing Pumpkins
+395,12,2013-10-05 00:00:00,"Praça Pio X, 119",Rio de Janeiro,RJ,Brazil,20040-020,5.94,6,2,6,Soundgarden
+396,18,2013-10-08 00:00:00,627 Broadway,New York,NY,USA,10012-2612,8.91,9,6,9,Spyro Gyra
+397,27,2013-10-13 00:00:00,1033 N Park Ave,Tucson,AZ,USA,85719,13.86,14,6,14,The Cult
+398,41,2013-10-21 00:00:00,"11, Place Bellecour",Lyon,,France,69002,0.99,1,1,1,The Tea Party
+399,42,2013-11-03 00:00:00,"9, Place Louis Barthou",Bordeaux,,France,33000,1.98,2,1,2,The Tea Party
+400,44,2013-11-03 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,1.98,2,1,2,The Tea Party
+401,46,2013-11-04 00:00:00,3 Chatham Street,Dublin,Dublin,Ireland,,3.96,4,1,4,The Tea Party
+402,50,2013-11-05 00:00:00,C/ San Bernardo 85,Madrid,,Spain,28015,5.94,6,2,6,The Who
+403,56,2013-11-08 00:00:00,307 Macacha Güemes,Buenos Aires,,Argentina,1106,8.91,9,2,9,Titãs
+404,6,2013-11-13 00:00:00,Rilská 3174/6,Prague,,Czech Republic,14300,25.86,14,5,14,Lost
+405,20,2013-11-21 00:00:00,541 Del Medio Avenue,Mountain View,CA,USA,94040-111,0.99,1,1,1,U2
+406,21,2013-12-04 00:00:00,801 W 4th Street,Reno,NV,USA,89503,1.98,2,1,2,U2
+407,23,2013-12-04 00:00:00,69 Salem Street,Boston,MA,USA,2113,1.98,2,1,2,U2
+408,25,2013-12-05 00:00:00,319 N. Frances Street,Madison,WI,USA,53703,3.96,4,1,4,U2
+409,29,2013-12-06 00:00:00,796 Dundas Street West,Toronto,ON,Canada,M6J 1V1,5.94,6,1,6,U2
+410,35,2013-12-09 00:00:00,"Rua dos Campeões Europeus de Viena, 4350",Porto,,Portugal,,8.91,9,1,9,U2
+411,44,2013-12-14 00:00:00,Porthaninkatu 9,Helsinki,,Finland,00530,13.86,14,6,14,Van Halen
+412,58,2013-12-22 00:00:00,"12,Community Centre",Delhi,,India,110017,1.99,1,1,1,The Office

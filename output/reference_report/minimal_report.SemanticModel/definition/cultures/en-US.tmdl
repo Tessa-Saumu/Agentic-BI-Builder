@@ -1385,10 +1385,118 @@ cultureInfo en-US
 			          }
 			        }
 			      ]
+			    },
+			    "in.total_patients": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "in",
+			          "ConceptualProperty": "Total Patients"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "total patients": {
+			            "State": "Generated"
+			          }
+			        },
+			        {
+			          "patients": {
+			            "State": "Generated",
+			            "Weight": 0.97
+			          }
+			        },
+			        {
+			          "aggregate patient": {
+			            "Type": "Noun",
+			            "State": "Suggested",
+			            "Source": {
+			              "Agent": "Thesaurus"
+			            },
+			            "Weight": 0.582
+			          }
+			        },
+			        {
+			          "overall patient": {
+			            "Type": "Noun",
+			            "State": "Suggested",
+			            "Source": {
+			              "Agent": "Thesaurus"
+			            },
+			            "Weight": 0.582
+			          }
+			        }
+			      ]
 			    }
 			  },
 			  "Relationships": {
-			    "in_is_old": {
+			    "in_visit_date_date_hierarchy_has_in_visit_date_year": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in.visit_date.date_hierarchy": {
+			          "Target": {
+			            "Entity": "in.visit_date.date_hierarchy"
+			          }
+			        },
+			        "in.visit_date.year": {
+			          "Target": {
+			            "Entity": "in.visit_date.year"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in.visit_date.date_hierarchy"
+			            },
+			            "Object": {
+			              "Role": "in.visit_date.year"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "visit_date_hierarchies_have_visit_years"
+			        }
+			      ]
+			    },
+			    "in_visit_date_has_date_hierarchy": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in.visit_date": {
+			          "Target": {
+			            "Entity": "in.visit_date"
+			          }
+			        },
+			        "in.visit_date.date_hierarchy": {
+			          "Target": {
+			            "Entity": "in.visit_date.date_hierarchy"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in.visit_date"
+			            },
+			            "Object": {
+			              "Role": "in.visit_date.date_hierarchy"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "visit_dates_have_visit_date_hierarchies"
+			        }
+			      ]
+			    },
+			    "in_has_total_patients": {
 			      "Binding": {
 			        "ConceptualEntity": "in"
 			      },
@@ -1399,56 +1507,95 @@ cultureInfo en-US
 			            "Entity": "in"
 			          }
 			        },
-			        "in.age": {
+			        "in.total_patients": {
 			          "Target": {
-			            "Entity": "in.age"
+			            "Entity": "in.total_patients"
 			          }
 			        }
 			      },
 			      "Phrasings": [
-			        {
-			          "Adjective": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Adjectives": [
-			              {
-			                "old": {
-			                  "State": "Generated"
-			                }
-			              }
-			            ],
-			            "Antonyms": [
-			              {
-			                "young": {
-			                  "State": "Generated"
-			                }
-			              }
-			            ],
-			            "Measurement": {
-			              "Role": "in.age"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "age_indicates_how_old_in_are"
-			        },
 			        {
 			          "Attribute": {
 			            "Subject": {
 			              "Role": "in"
 			            },
 			            "Object": {
-			              "Role": "in.age"
+			              "Role": "in.total_patients"
 			            }
 			          },
 			          "State": "Generated",
 			          "Weight": 0.99,
-			          "ID": "in_have_ages"
+			          "ID": "in_have_total_patients"
 			        }
 			      ]
 			    },
-			    "in_is_expensive": {
+			    "in_has_average_age": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.average_age": {
+			          "Target": {
+			            "Entity": "in.average_age"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.average_age"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_average_age"
+			        }
+			      ]
+			    },
+			    "in_has_total_cost": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.total_cost": {
+			          "Target": {
+			            "Entity": "in.total_cost"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.total_cost"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_total_cost"
+			        }
+			      ]
+			    },
+			    "in_has_cost": {
 			      "Binding": {
 			        "ConceptualEntity": "in"
 			      },
@@ -1466,6 +1613,19 @@ cultureInfo en-US
 			        }
 			      },
 			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.cost"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_costs"
+			        },
 			        {
 			          "Adjective": {
 			            "Subject": {
@@ -1492,19 +1652,264 @@ cultureInfo en-US
 			          "State": "Generated",
 			          "Weight": 0.99,
 			          "ID": "cost_indicates_how_expensive_in_are"
+			        }
+			      ]
+			    },
+			    "in_has_doctor": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
 			        },
+			        "in.doctor": {
+			          "Target": {
+			            "Entity": "in.doctor"
+			          }
+			        }
+			      },
+			      "Phrasings": [
 			        {
 			          "Attribute": {
 			            "Subject": {
 			              "Role": "in"
 			            },
 			            "Object": {
-			              "Role": "in.cost"
+			              "Role": "in.doctor"
 			            }
 			          },
 			          "State": "Generated",
 			          "Weight": 0.99,
-			          "ID": "in_have_costs"
+			          "ID": "in_have_doctors"
+			        }
+			      ]
+			    },
+			    "in_has_treatment": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.treatment": {
+			          "Target": {
+			            "Entity": "in.treatment"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.treatment"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_treatments"
+			        }
+			      ]
+			    },
+			    "in_has_diagnosis": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.diagnosis": {
+			          "Target": {
+			            "Entity": "in.diagnosis"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.diagnosis"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_diagnoses"
+			        }
+			      ]
+			    },
+			    "in_has_gender": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.gender": {
+			          "Target": {
+			            "Entity": "in.gender"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.gender"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_genders"
+			        }
+			      ]
+			    },
+			    "in_has_age": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.age": {
+			          "Target": {
+			            "Entity": "in.age"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.age"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_ages"
+			        },
+			        {
+			          "Adjective": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Adjectives": [
+			              {
+			                "old": {
+			                  "State": "Generated"
+			                }
+			              }
+			            ],
+			            "Antonyms": [
+			              {
+			                "young": {
+			                  "State": "Generated"
+			                }
+			              }
+			            ],
+			            "Measurement": {
+			              "Role": "in.age"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "age_indicates_how_old_in_are"
+			        }
+			      ]
+			    },
+			    "in_has_patient_ID": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.patient_ID": {
+			          "Target": {
+			            "Entity": "in.patient_ID"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.patient_ID"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_patient_ID"
+			        }
+			      ]
+			    },
+			    "in_has_visit_date": {
+			      "Binding": {
+			        "ConceptualEntity": "in"
+			      },
+			      "State": "Generated",
+			      "Roles": {
+			        "in": {
+			          "Target": {
+			            "Entity": "in"
+			          }
+			        },
+			        "in.visit_date": {
+			          "Target": {
+			            "Entity": "in.visit_date"
+			          }
+			        }
+			      },
+			      "Phrasings": [
+			        {
+			          "Attribute": {
+			            "Subject": {
+			              "Role": "in"
+			            },
+			            "Object": {
+			              "Role": "in.visit_date"
+			            }
+			          },
+			          "State": "Generated",
+			          "Weight": 0.99,
+			          "ID": "in_have_visit_dates"
 			        }
 			      ]
 			    },
@@ -1547,336 +1952,6 @@ cultureInfo en-US
 			          "State": "Generated",
 			          "Weight": 0.9,
 			          "ID": "in_are_visited_on_visit_dates"
-			        }
-			      ]
-			    },
-			    "in_has_visit_date": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.visit_date": {
-			          "Target": {
-			            "Entity": "in.visit_date"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.visit_date"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_visit_dates"
-			        }
-			      ]
-			    },
-			    "in_has_patient_ID": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.patient_ID": {
-			          "Target": {
-			            "Entity": "in.patient_ID"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.patient_ID"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_patient_ID"
-			        }
-			      ]
-			    },
-			    "in_has_gender": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.gender": {
-			          "Target": {
-			            "Entity": "in.gender"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.gender"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_genders"
-			        }
-			      ]
-			    },
-			    "in_has_diagnosis": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.diagnosis": {
-			          "Target": {
-			            "Entity": "in.diagnosis"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.diagnosis"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_diagnoses"
-			        }
-			      ]
-			    },
-			    "in_has_treatment": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.treatment": {
-			          "Target": {
-			            "Entity": "in.treatment"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.treatment"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_treatments"
-			        }
-			      ]
-			    },
-			    "in_has_doctor": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.doctor": {
-			          "Target": {
-			            "Entity": "in.doctor"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.doctor"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_doctors"
-			        }
-			      ]
-			    },
-			    "in_has_total_cost": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.total_cost": {
-			          "Target": {
-			            "Entity": "in.total_cost"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.total_cost"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_total_cost"
-			        }
-			      ]
-			    },
-			    "in_has_average_age": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in": {
-			          "Target": {
-			            "Entity": "in"
-			          }
-			        },
-			        "in.average_age": {
-			          "Target": {
-			            "Entity": "in.average_age"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in"
-			            },
-			            "Object": {
-			              "Role": "in.average_age"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "in_have_average_age"
-			        }
-			      ]
-			    },
-			    "in_visit_date_has_date_hierarchy": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in.visit_date": {
-			          "Target": {
-			            "Entity": "in.visit_date"
-			          }
-			        },
-			        "in.visit_date.date_hierarchy": {
-			          "Target": {
-			            "Entity": "in.visit_date.date_hierarchy"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in.visit_date"
-			            },
-			            "Object": {
-			              "Role": "in.visit_date.date_hierarchy"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "visit_dates_have_visit_date_hierarchies"
-			        }
-			      ]
-			    },
-			    "in_visit_date_date_hierarchy_has_in_visit_date_year": {
-			      "Binding": {
-			        "ConceptualEntity": "in"
-			      },
-			      "State": "Generated",
-			      "Roles": {
-			        "in.visit_date.date_hierarchy": {
-			          "Target": {
-			            "Entity": "in.visit_date.date_hierarchy"
-			          }
-			        },
-			        "in.visit_date.year": {
-			          "Target": {
-			            "Entity": "in.visit_date.year"
-			          }
-			        }
-			      },
-			      "Phrasings": [
-			        {
-			          "Attribute": {
-			            "Subject": {
-			              "Role": "in.visit_date.date_hierarchy"
-			            },
-			            "Object": {
-			              "Role": "in.visit_date.year"
-			            }
-			          },
-			          "State": "Generated",
-			          "Weight": 0.99,
-			          "ID": "visit_date_hierarchies_have_visit_years"
 			        }
 			      ]
 			    },

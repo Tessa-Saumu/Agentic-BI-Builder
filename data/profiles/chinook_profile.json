@@ -1,8 +1,8 @@
 {
-  "source_path": "data\\raw\\chinook.sqlite",
-  "source_table": "Invoice",
+  "source_path": "data\\raw\\chinook.csv",
+  "source_table": null,
   "row_count": 412,
-  "column_count": 9,
+  "column_count": 13,
   "is_single_row": false,
   "columns": {
     "InvoiceId": {
@@ -146,6 +146,70 @@
         5.94,
         8.91,
         13.86
+      ],
+      "is_all_null": false
+    },
+    "track_count": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 6,
+      "min_value": 1,
+      "max_value": 14,
+      "sample_values": [
+        2,
+        4,
+        6,
+        9,
+        14
+      ],
+      "is_all_null": false
+    },
+    "distinct_artists_purchased": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 10,
+      "min_value": 1,
+      "max_value": 11,
+      "sample_values": [
+        1,
+        1,
+        2,
+        5,
+        9
+      ],
+      "is_all_null": false
+    },
+    "distinct_tracks_purchased": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 6,
+      "min_value": 1,
+      "max_value": 14,
+      "sample_values": [
+        2,
+        4,
+        6,
+        9,
+        14
+      ],
+      "is_all_null": false
+    },
+    "primary_artist": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 95,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "Accept",
+        "AC/DC",
+        "Aerosmith",
+        "Alanis Morissette",
+        "Audioslave"
       ],
       "is_all_null": false
     }
