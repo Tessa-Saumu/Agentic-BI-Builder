@@ -148,14 +148,22 @@ def _call_reflection_llm(system_prompt: str, user_content: str, provider: str) -
     return call_llm(system_prompt, user_content, provider, response_model=ReflectionResponse)
 
 
-def _log_reflection(dataset_name: str, notes: list[ReflectionNote], output_dir: str = "data/profiles") -> str | None:
+def _log_reflection(
+    dataset_name: str,
+    notes: list[ReflectionNote],
+    reviewed_kpi_count: int,
+    output_dir: str = "data/profiles",
+) -> str | None:
     """
     Log reflection activity to console always, and to a JSON file when there
     are any notes to report. Returns the file path written, or None if no
     notes were generated (nothing to log to a file).
     """
     if not notes:
-        print(f"[Reflector] {dataset_name}: no issues found across {len(notes)} KPIs — all clear.")
+        print(
+            f"[Reflector] {dataset_name}: no issues found across "
+            f"{reviewed_kpi_count} KPIs — all clear."
+        )
         return None
 
     print(f"[Reflector] {dataset_name}: {len(notes)} issue(s) found:")
@@ -213,6 +221,23 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
         return state
     if not state.query_results:
         state.errors.append("run_reflector: state.query_results is empty; run the SQL Executor node first.")
+        return state
+
+    kpi_names = [kpi.name for kpi in state.kpi_specs]
+    normalized_kpi_names = [name.strip().casefold() for name in kpi_names]
+    if len(normalized_kpi_names) != len(set(normalized_kpi_names)):
+        state.errors.append(
+            "run_reflector: KPI names must be unique because names link "
+            "KPISpec, QueryResult, and ReflectionNote objects."
+        )
+        return state
+
+    result_names = [result.kpi_name for result in state.query_results]
+    normalized_result_names = [name.strip().casefold() for name in result_names]
+    if len(normalized_result_names) != len(set(normalized_result_names)):
+        state.errors.append(
+            "run_reflector: QueryResult.kpi_name values must be unique."
+        )
         return state
 
     provider = os.environ.get("LLM_PROVIDER", "gemini").strip().lower()

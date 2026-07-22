@@ -202,12 +202,27 @@ class TestModelConstraints:
             KPISpec(name="x", description="y", sql_query="DROP TABLE data", chart_type="card", reasoning="z")
 
     def test_response_requires_exactly_five_kpis(self):
-        kpi = _make_kpi("SELECT 1")
         dh = DomainHypothesis(domain="retail", confidence=0.9, reasoning="z")
+        two_kpis = [_make_kpi("SELECT 1", name=f"KPI {i}") for i in range(2)]
         with pytest.raises(ValidationError):
-            DomainKPIResponse(domain_hypothesis=dh, kpi_specs=[kpi, kpi])
-        # exactly 5 is fine
-        DomainKPIResponse(domain_hypothesis=dh, kpi_specs=[kpi] * 5)
+            DomainKPIResponse(domain_hypothesis=dh, kpi_specs=two_kpis)
+
+        five_unique_kpis = [
+            _make_kpi("SELECT 1", name=f"KPI {i}") for i in range(5)
+        ]
+        DomainKPIResponse(domain_hypothesis=dh, kpi_specs=five_unique_kpis)
+
+    def test_response_rejects_duplicate_kpi_names(self):
+        dh = DomainHypothesis(domain="retail", confidence=0.9, reasoning="z")
+        duplicate_names = [
+            _make_kpi("SELECT 1", name="Revenue"),
+            _make_kpi("SELECT 2", name="revenue"),
+            _make_kpi("SELECT 3", name="KPI 3"),
+            _make_kpi("SELECT 4", name="KPI 4"),
+            _make_kpi("SELECT 5", name="KPI 5"),
+        ]
+        with pytest.raises(ValidationError, match="unique"):
+            DomainKPIResponse(domain_hypothesis=dh, kpi_specs=duplicate_names)
 
 
 # ---------------------------------------------------------------------------

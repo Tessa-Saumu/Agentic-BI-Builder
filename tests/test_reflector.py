@@ -20,6 +20,7 @@ from agent.models import (  # noqa: E402
     ColumnProfile,
     DataProfile,
     KPISpec,
+    QueryResult,
     ReflectionNote,
     ReflectionResponse,
 )
@@ -143,7 +144,9 @@ class TestPrerequisites:
 # ---------------------------------------------------------------------------
 
 class TestRunReflector:
-    def test_no_issues_found_is_a_valid_clean_pass_through(self, executed_state, tmp_path, monkeypatch):
+    def test_no_issues_found_is_a_valid_clean_pass_through(
+        self, executed_state, tmp_path, monkeypatch, capsys
+    ):
         monkeypatch.chdir(tmp_path)
         empty_response = ReflectionResponse(notes=[])
         with patch("agent.reflector._call_reflection_llm", return_value=empty_response):
@@ -153,6 +156,7 @@ class TestRunReflector:
         # Nothing should have been dropped or altered.
         assert len(result.kpi_specs) == 2
         assert len(result.query_results) == 2
+        assert "no issues found across 2 KPIs" in capsys.readouterr().out
 
     def test_flagged_kpi_with_fix_is_retried_and_only_that_kpi(self, executed_state, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -178,6 +182,7 @@ class TestRunReflector:
 
         fixed_result = next(qr for qr in result.query_results if qr.kpi_name == "Qty By Country")
         assert fixed_result.status == "pass"
+        assert fixed_result.sql_query == fixed_kpi.sql_query
         france_row = next(r for r in fixed_result.result_rows if r["Country"] == "France")
         assert france_row["total_qty"] == 0  # no longer None after the fix
 
@@ -257,6 +262,56 @@ class TestRunReflector:
         assert any("API down" in e for e in result.errors)
         # Original state should be untouched since reflection never completed.
         assert len(result.kpi_specs) == 2
+
+    def test_unknown_kpi_note_is_reported_and_ignored(self, executed_state, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        response = ReflectionResponse(notes=[
+            ReflectionNote(
+                kpi_name="Invented KPI",
+                issue_type="sql_error",
+                description="This KPI does not exist.",
+                fix_instruction="Replace its SQL.",
+                fixed_sql_query="SELECT 1 FROM data",
+            )
+        ])
+
+        with patch("agent.reflector._call_reflection_llm", return_value=response):
+            result = run_reflector(executed_state, dataset_name="unknown_note")
+
+        assert any("unknown KPI 'Invented KPI'" in error for error in result.errors)
+        assert result.reflection_notes == []
+        assert len(result.kpi_specs) == 2
+        assert len(result.query_results) == 2
+
+    def test_duplicate_kpi_names_are_rejected_before_llm_call(self, retail_csv, retail_profile):
+        duplicate_kpis = [
+            _make_kpi("SELECT Country FROM data", "Revenue"),
+            _make_kpi("SELECT Quantity FROM data", " revenue "),
+        ]
+        duplicate_results = [
+            QueryResult(
+                kpi_name="Revenue",
+                sql_query="SELECT Country FROM data",
+                status="pass",
+            ),
+            QueryResult(
+                kpi_name=" revenue ",
+                sql_query="SELECT Quantity FROM data",
+                status="pass",
+            ),
+        ]
+        state = AgentState(
+            input_path=retail_csv,
+            data_profile=retail_profile,
+            kpi_specs=duplicate_kpis,
+            query_results=duplicate_results,
+        )
+
+        with patch("agent.reflector._call_reflection_llm") as mock_call:
+            result = run_reflector(state)
+
+        mock_call.assert_not_called()
+        assert any("KPI names must be unique" in error for error in result.errors)
 
 
 # ---------------------------------------------------------------------------

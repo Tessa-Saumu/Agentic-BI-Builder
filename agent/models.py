@@ -101,9 +101,14 @@ class DomainKPIResponse(BaseModel):
 
     @field_validator("kpi_specs")
     @classmethod
-    def _exactly_five(cls, v: list[KPISpec]) -> list[KPISpec]:
+    def _validate_kpi_collection(cls, v: list[KPISpec]) -> list[KPISpec]:
         if len(v) != 5:
             raise ValueError(f"Expected exactly 5 KPISpec objects, got {len(v)}")
+
+        names = [kpi.name.strip().casefold() for kpi in v]
+        if len(names) != len(set(names)):
+            raise ValueError("KPI names must be unique")
+
         return v
 
 
