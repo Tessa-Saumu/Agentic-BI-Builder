@@ -253,7 +253,11 @@ def run_reflector(state: AgentState, dataset_name: str = "dataset") -> AgentStat
         return state
 
     notes = response.notes
-    _log_reflection(dataset_name, notes)
+    _log_reflection(
+    dataset_name,
+    notes,
+    reviewed_kpi_count=len(state.kpi_specs),
+    )   
     state.reflection_notes = notes
 
     if not notes:

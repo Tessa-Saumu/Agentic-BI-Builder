@@ -158,62 +158,120 @@ class TestRunReflector:
         assert len(result.query_results) == 2
         assert "no issues found across 2 KPIs" in capsys.readouterr().out
 
-    def test_flagged_kpi_with_fix_is_retried_and_only_that_kpi(self, executed_state, tmp_path, monkeypatch):
+    def test_flagged_kpi_with_fix_is_flagged_for_retry_and_sql_is_updated(
+    self, executed_state, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
+
         response = ReflectionResponse(notes=[
             ReflectionNote(
                 kpi_name="Qty By Country",
                 issue_type="null_heavy",
                 description="France total_qty is NULL.",
                 fix_instruction="Use COALESCE.",
-                fixed_sql_query="SELECT Country, SUM(COALESCE(Quantity, 0)) AS total_qty FROM data GROUP BY Country",
+                fixed_sql_query=(
+                    "SELECT Country, "
+                    "SUM(COALESCE(Quantity, 0)) AS total_qty "
+                    "FROM data GROUP BY Country"
+                ),
             )
         ])
-        with patch("agent.reflector._call_reflection_llm", return_value=response) as mock_call:
-            result = run_reflector(executed_state, dataset_name="fix_run")
 
-        # Only one LLM call total — the retry itself is deterministic SQL
-        # execution, not a second LLM round-trip.
+        with patch(
+            "agent.reflector._call_reflection_llm",
+            return_value=response,
+        ) as mock_call:
+            result = run_reflector(
+                executed_state,
+                dataset_name="fix_run",
+            )
+
+        # Reflector only calls the LLM once. Retry execution happens downstream.
         assert mock_call.call_count == 1
 
-        assert len(result.kpi_specs) == 2  # nothing dropped
-        fixed_kpi = next(k for k in result.kpi_specs if k.name == "Qty By Country")
+        # KPI should remain in the pipeline.
+        assert len(result.kpi_specs) == 2
+
+        fixed_kpi = next(
+            k for k in result.kpi_specs
+            if k.name == "Qty By Country"
+        )
+
         assert "COALESCE" in fixed_kpi.sql_query
 
-        fixed_result = next(qr for qr in result.query_results if qr.kpi_name == "Qty By Country")
-        assert fixed_result.status == "pass"
-        assert fixed_result.sql_query == fixed_kpi.sql_query
-        france_row = next(r for r in fixed_result.result_rows if r["Country"] == "France")
-        assert france_row["total_qty"] == 0  # no longer None after the fix
+        # Reflector should flag the KPI for graph-level retry.
+        assert result.kpis_to_retry == ["Qty By Country"]
 
-        # The untouched KPI's result must be unchanged.
-        untouched = next(qr for qr in result.query_results if qr.kpi_name == "Total Revenue")
+        # Query results should NOT have been re-executed here.
+        qty_result = next(
+            qr for qr in result.query_results
+            if qr.kpi_name == "Qty By Country"
+        )
+
+        assert qty_result.sql_query != fixed_kpi.sql_query
+
+        # Untouched KPI remains unchanged.
+        untouched = next(
+            qr for qr in result.query_results
+            if qr.kpi_name == "Total Revenue"
+        )
+
         assert untouched.result_rows == [{"revenue": 65.5}]
-
-    def test_kpi_dropped_when_retry_still_fails(self, retail_csv, retail_profile, tmp_path, monkeypatch):
+    
+    def test_kpi_with_failed_original_query_is_flagged_for_retry(
+        self, retail_csv, retail_profile, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
+
         kpis = [
             _make_kpi("SELECT SUM(FakeCol) FROM data", "Broken"),
             _make_kpi("SELECT Country FROM data", "Good"),
         ]
-        state = AgentState(input_path=retail_csv, data_profile=retail_profile, kpi_specs=kpis)
+
+        state = AgentState(
+            input_path=retail_csv,
+            data_profile=retail_profile,
+            kpi_specs=kpis,
+        )
+
         state = run_sql_executor(state)
 
         response = ReflectionResponse(notes=[
             ReflectionNote(
-                kpi_name="Broken", issue_type="sql_error", description="bad column",
-                fix_instruction="try again", fixed_sql_query="SELECT SUM(StillFakeCol) FROM data",
+                kpi_name="Broken",
+                issue_type="sql_error",
+                description="bad column",
+                fix_instruction="replace invalid column",
+                fixed_sql_query="SELECT SUM(StillFakeCol) FROM data",
             )
         ])
-        with patch("agent.reflector._call_reflection_llm", return_value=response):
-            result = run_reflector(state, dataset_name="drop_run")
 
-        remaining_names = {k.name for k in result.kpi_specs}
-        assert remaining_names == {"Good"}
-        assert {qr.kpi_name for qr in result.query_results} == {"Good"}
-        # After the retry cycle, every KPI still present must have passed.
-        assert all(qr.status == "pass" for qr in result.query_results)
+        with patch(
+            "agent.reflector._call_reflection_llm",
+            return_value=response,
+        ):
+            result = run_reflector(
+                state,
+                dataset_name="retry_run",
+            )
 
+        # Reflector does not execute the retry.
+        assert result.kpis_to_retry == ["Broken"]
+
+        # KPI remains until retry executor decides its fate.
+        remaining_names = {
+            k.name for k in result.kpi_specs
+        }
+
+        assert remaining_names == {"Broken", "Good"}
+
+        broken = next(
+            k for k in result.kpi_specs
+            if k.name == "Broken"
+        )
+
+        assert broken.sql_query == "SELECT SUM(StillFakeCol) FROM data"
+        
     def test_kpi_dropped_when_no_fix_offered(self, executed_state, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         response = ReflectionResponse(notes=[
@@ -263,8 +321,11 @@ class TestRunReflector:
         # Original state should be untouched since reflection never completed.
         assert len(result.kpi_specs) == 2
 
-    def test_unknown_kpi_note_is_reported_and_ignored(self, executed_state, tmp_path, monkeypatch):
+    def test_unknown_kpi_note_is_kept_as_audit_record_and_ignored(
+        self, executed_state, tmp_path, monkeypatch
+    ):
         monkeypatch.chdir(tmp_path)
+
         response = ReflectionResponse(notes=[
             ReflectionNote(
                 kpi_name="Invented KPI",
@@ -275,14 +336,26 @@ class TestRunReflector:
             )
         ])
 
-        with patch("agent.reflector._call_reflection_llm", return_value=response):
-            result = run_reflector(executed_state, dataset_name="unknown_note")
+        with patch(
+            "agent.reflector._call_reflection_llm",
+            return_value=response,
+        ):
+            result = run_reflector(
+                executed_state,
+                dataset_name="unknown_note",
+            )
 
-        assert any("unknown KPI 'Invented KPI'" in error for error in result.errors)
-        assert result.reflection_notes == []
+        # Reflection notes remain the LLM audit output.
+        assert len(result.reflection_notes) == 1
+        assert result.reflection_notes[0].kpi_name == "Invented KPI"
+
+        # Unknown KPI cannot be modified.
+        assert result.kpis_to_retry == []
+
+        # Existing pipeline state remains untouched.
         assert len(result.kpi_specs) == 2
         assert len(result.query_results) == 2
-
+    
     def test_duplicate_kpi_names_are_rejected_before_llm_call(self, retail_csv, retail_profile):
         duplicate_kpis = [
             _make_kpi("SELECT Country FROM data", "Revenue"),
