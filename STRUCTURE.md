@@ -22,6 +22,7 @@ agentic-bi-builder/
 │
 ├── pbir/                       # PBIR compiler (core innovation)
 │   ├── compiler/
+│   │   ├── theme_assets
 │   │   ├── builder.py
 │   │   ├── layout.py
 │   │   ├── m_query.py
@@ -76,10 +77,13 @@ agentic-bi-builder/
 │   └── 04_pbir_output_inspection.ipynb
 │
 ├── docs/
+│   ├── Project Description.md
 │   └── pbir_reference.md
 │
 ├── run_agent.py                # Entry point
 ├── requirements.txt
+├── .gitignore
+├── .env.example
 ├── README.md
 └── STRUCTURE.md
 ```
