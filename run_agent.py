@@ -87,7 +87,8 @@ def _build_run_summary(
     else:
         model = os.environ.get("GEMINI_MODEL", _DEFAULT_GEMINI_MODEL)
         model_fallback = os.environ.get("GEMINI_MODEL_FALLBACK", _DEFAULT_GEMINI_MODEL_FALLBACK)
-        temperature = None
+        # temperature=0 for cross-provider determinism; matches Mistral path
+        temperature = 0
         provider_pkg = "google-genai"
 
     package_versions = {
@@ -240,6 +241,10 @@ def main():
         print(
             f"✅ Report written to: {final_state.output_path} "
             f"({n_pages} page(s), {n_visuals} visual(s))"
+        )
+        print(
+            "Note: compiled report embeds the absolute CSV path; to move the "
+            "report to another machine, re-run run_agent.py there."
         )
     else:
         print(f"\n❌ No report was written to {final_state.output_path} "

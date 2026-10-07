@@ -184,6 +184,31 @@ class TestSQLColumnValidation:
         )
         assert _validate_sql_columns([kpi], retail_profile) == []
 
+    def test_bracket_quoted_identifiers_are_not_flagged(self, retail_profile):
+        # G20: T-SQL-style bracket quoting ([Total]) observed in real LLM
+        # output must validate exactly like bare identifiers -- the brackets
+        # are quoting, not part of the column name.
+        kpi = _make_kpi(
+            "SELECT [Country], SUM([Quantity] * [UnitPrice]) AS revenue FROM data GROUP BY [Country]"
+        )
+        assert _validate_sql_columns([kpi], retail_profile) == []
+
+    def test_bracket_quoted_hallucinated_column_is_still_caught(self, retail_profile):
+        # Bracket quoting must not exempt a hallucinated column from
+        # validation -- [DiscountPercent] is still not a real column.
+        kpi = _make_kpi("SELECT AVG([DiscountPercent]) AS avg_disc FROM data")
+        violations = _validate_sql_columns([kpi], retail_profile)
+        assert len(violations) == 1
+        assert "DiscountPercent" in violations[0]
+
+    def test_is_not_null_keywords_not_flagged(self, retail_profile):
+        # G20: the null-filter form (COUNT(DISTINCT col) ... WHERE col IS
+        # NOT NULL) introduces no identifiers beyond the column itself.
+        kpi = _make_kpi(
+            "SELECT COUNT(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL"
+        )
+        assert _validate_sql_columns([kpi], retail_profile) == []
+
 
 # ---------------------------------------------------------------------------
 # Pydantic model constraints

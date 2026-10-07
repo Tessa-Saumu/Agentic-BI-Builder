@@ -1,0 +1,48 @@
+{
+  "dataset": "chinook",
+  "planted_issues": {
+    "Total Sales Revenue": {
+      "issue_type": "sql_error",
+      "description": "Column/table reference corrupted: 'SELECT SUM(Total) AS total_revenue FROM data' -> 'SELECT SUM(Totals) AS total_revenue FROM data'"
+    },
+    "Monthly Revenue Trend": {
+      "issue_type": "wrong_aggregation",
+      "description": "SUM replaced with COUNT (same query still executes, wrong quantity): 'SELECT strftime('%Y-%m', InvoiceDate) AS sales_month, SUM(Total) AS monthly_revenue FROM data GROUP BY sales_month ORDER BY sales_month ASC' -> 'SELECT strftime('%Y-%m', InvoiceDate) AS sales_month, COUNT(Total) AS monthly_revenue FROM data GROUP BY sales_month ORDER BY sales_month ASC'"
+    },
+    "Revenue by Billing Country": {
+      "issue_type": "null_heavy",
+      "description": "Query replaced with a GROUP BY on 'BillingState', a column with a real documented null rate in this dataset's profile: 'SELECT BillingCountry, SUM(Total) AS country_revenue FROM data GROUP BY BillingCountry ORDER BY country_revenue DESC' -> 'SELECT BillingState, COUNT(*) AS row_count FROM data GROUP BY BillingState'"
+    }
+  },
+  "reflection_notes": [
+    {
+      "kpi_name": "Total Sales Revenue",
+      "issue_type": "sql_error",
+      "description": "The query failed because it references the column 'Totals', which does not exist. The correct column name in the dataset is 'Total'.",
+      "fix_instruction": "Replace 'Totals' with 'Total' in the SUM aggregation function.",
+      "fixed_sql_query": "SELECT SUM(Total) AS total_revenue FROM data"
+    },
+    {
+      "kpi_name": "Monthly Revenue Trend",
+      "issue_type": "wrong_aggregation",
+      "description": "The query uses COUNT(Total) instead of SUM(Total), which counts the number of transactions rather than summing the actual revenue trend over time as described.",
+      "fix_instruction": "Change COUNT(Total) to SUM(Total) to track monthly revenue instead of transaction counts.",
+      "fixed_sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS sales_month, SUM(Total) AS monthly_revenue FROM data GROUP BY sales_month ORDER BY sales_month ASC"
+    },
+    {
+      "kpi_name": "Revenue by Billing Country",
+      "issue_type": "wrong_aggregation",
+      "description": "The query groups by 'BillingState' and performs a count of rows, which does not match the KPI name ('Revenue by Billing Country') or description ('Compares gross sales across different countries').",
+      "fix_instruction": "Update the query to select 'BillingCountry' and SUM(Total) as 'total_revenue', group by 'BillingCountry', and sort by the total revenue in descending order.",
+      "fixed_sql_query": "SELECT BillingCountry, SUM(Total) AS total_revenue FROM data GROUP BY BillingCountry ORDER BY total_revenue DESC"
+    }
+  ],
+  "n_planted": 3,
+  "n_caught": 3,
+  "n_fixed": 3,
+  "kpis_to_retry": [
+    "Total Sales Revenue",
+    "Monthly Revenue Trend",
+    "Revenue by Billing Country"
+  ]
+}

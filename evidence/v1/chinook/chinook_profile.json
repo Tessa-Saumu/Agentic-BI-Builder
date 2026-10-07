@@ -1,0 +1,217 @@
+{
+  "source_path": "data/raw/chinook.csv",
+  "source_table": null,
+  "row_count": 412,
+  "column_count": 13,
+  "is_single_row": false,
+  "columns": {
+    "InvoiceId": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 412,
+      "min_value": 1,
+      "max_value": 412,
+      "sample_values": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "is_all_null": false
+    },
+    "CustomerId": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 59,
+      "min_value": 1,
+      "max_value": 59,
+      "sample_values": [
+        2,
+        4,
+        8,
+        14,
+        23
+      ],
+      "is_all_null": false
+    },
+    "InvoiceDate": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 354,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "2009-01-01 00:00:00",
+        "2009-01-02 00:00:00",
+        "2009-01-03 00:00:00",
+        "2009-01-06 00:00:00",
+        "2009-01-11 00:00:00"
+      ],
+      "is_all_null": false
+    },
+    "BillingAddress": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 59,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "Theodor-Heuss-Stra\u00dfe 34",
+        "Ullev\u00e5lsveien 14",
+        "Gr\u00e9trystraat 63",
+        "8210 111 ST NW",
+        "69 Salem Street"
+      ],
+      "is_all_null": false
+    },
+    "BillingCity": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 53,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "Stuttgart",
+        "Oslo",
+        "Brussels",
+        "Edmonton",
+        "Boston"
+      ],
+      "is_all_null": false
+    },
+    "BillingState": {
+      "inferred_dtype": "string",
+      "null_count": 202,
+      "null_rate": 0.490291,
+      "distinct_count": 25,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "AB",
+        "MA",
+        "Dublin",
+        "CA",
+        "WA"
+      ],
+      "is_all_null": false
+    },
+    "BillingCountry": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 24,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "Germany",
+        "Norway",
+        "Belgium",
+        "Canada",
+        "USA"
+      ],
+      "is_all_null": false
+    },
+    "BillingPostalCode": {
+      "inferred_dtype": "string",
+      "null_count": 28,
+      "null_rate": 0.067961,
+      "distinct_count": 55,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "70174",
+        "0171",
+        "1000",
+        "T6G 2C7",
+        "2113"
+      ],
+      "is_all_null": false
+    },
+    "Total": {
+      "inferred_dtype": "float",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 23,
+      "min_value": 0.99,
+      "max_value": 25.86,
+      "sample_values": [
+        1.98,
+        3.96,
+        5.94,
+        8.91,
+        13.86
+      ],
+      "is_all_null": false
+    },
+    "track_count": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 6,
+      "min_value": 1,
+      "max_value": 14,
+      "sample_values": [
+        2,
+        4,
+        6,
+        9,
+        14
+      ],
+      "is_all_null": false
+    },
+    "distinct_artists_purchased": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 10,
+      "min_value": 1,
+      "max_value": 11,
+      "sample_values": [
+        1,
+        1,
+        2,
+        5,
+        9
+      ],
+      "is_all_null": false
+    },
+    "distinct_tracks_purchased": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 6,
+      "min_value": 1,
+      "max_value": 14,
+      "sample_values": [
+        2,
+        4,
+        6,
+        9,
+        14
+      ],
+      "is_all_null": false
+    },
+    "primary_artist": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 95,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "Accept",
+        "AC/DC",
+        "Aerosmith",
+        "Alanis Morissette",
+        "Audioslave"
+      ],
+      "is_all_null": false
+    }
+  }
+}

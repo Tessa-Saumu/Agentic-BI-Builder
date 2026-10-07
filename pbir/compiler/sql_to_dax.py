@@ -116,20 +116,22 @@ _DISTINCT_COUNT_RE = re.compile(
 
 # A SQL WHERE clause on the outermost query -- captured and stripped before
 # the rest of translate() runs, then re-applied as a DAX CALCULATE(...)
-# filter argument around the final translated expression. Only a single
-# "<column> <op> <value>" condition is recognized (matching every WHERE in
-# the 3 datasets' real KPIs: "Quantity > 0", "1=1" is treated as no-op);
-# AND/OR-joined multi-condition WHEREs are NOT guessed at and fall through
-# to the existing "unsupported shape" error.
+# filter argument around the final translated expression. Two forms are
+# recognized (matching every WHERE in the 3 datasets' real KPIs:
+# "Quantity > 0", "CustomerID IS NOT NULL", "1=1" treated as no-op):
+# a single "<column> <op> <value>" comparison, or a single
+# "<column> IS [NOT] NULL" null check; AND/OR-joined multi-condition
+# WHEREs are NOT guessed at and fall through to the existing "unsupported
+# shape" error.
 _WHERE_CLAUSE_RE = re.compile(
-    r"""\s+WHERE\s+(?P<condition>[A-Za-z_][A-Za-z0-9_]*\s*(?:>|<|>=|<=|=|!=|<>)\s*'?[^'\s]+'?|1\s*=\s*1)
+    r"""\s+WHERE\s+(?P<condition>[A-Za-z_][A-Za-z0-9_]*\s*(?:>|<|>=|<=|=|!=|<>)\s*'?[^'\s]+'?|[A-Za-z_][A-Za-z0-9_]*\s+IS\s+(?:NOT\s+)?NULL|1\s*=\s*1)
         \s*(?P<trailing>GROUP\s+BY.*|ORDER\s+BY.*|LIMIT.*)?$""",
     re.IGNORECASE | re.VERBOSE | re.DOTALL,
 )
 
 _CONDITION_RE = re.compile(
-    r"""^(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*(?P<op>>=|<=|!=|<>|>|<|=)\s*'?(?P<val>[^'\s]+)'?$""",
-    re.VERBOSE,
+    r"""^(?P<col>[A-Za-z_][A-Za-z0-9_]*)\s*(?:(?P<op>>=|<=|!=|<>|>|<|=)\s*'?(?P<val>[^'\s]+)'?|IS\s+(?P<null_not>NOT\s+)?NULL)$""",
+    re.IGNORECASE | re.VERBOSE,
 )
 
 # SQL comparison operator -> DAX comparison operator (identical for every
@@ -308,18 +310,28 @@ _CURRENCY_COLUMN_HINTS = {"total", "price", "cost", "revenue", "amount", "sales"
 # even got a chance to run.
 # =====================================================================
 
-# ANSI-style double-quoted identifier, e.g. "Total" -> Total. SQLite (and
-# standard SQL) uses double quotes for identifiers and single quotes for
-# string literals, so this never touches a real string literal -- e.g.
-# Attrition = 'Yes' and strftime('%Y-%m', ...) are both single-quoted and
-# left completely untouched.
+# ANSI-style double-quoted identifier, e.g. "Total" -> Total.
 _QUOTED_IDENTIFIER_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"')
+
+# T-SQL-style bracket-quoted identifier, e.g. [Total] -> Total. Observed in
+# real LLM output during PROJECT_EVIDENCE verification; SQLite itself
+# accepts this quoting natively, so only the translator (whose regexes all
+# assume bare identifiers) needs the normalization -- the executor and the
+# column validator already handle bracketed SQL unchanged.
+_BRACKET_IDENTIFIER_RE = re.compile(r"\[([A-Za-z_][A-Za-z0-9_]*)\]")
+
+# Single-quoted SQL string literal -- used to split the query so identifier
+# normalization below never rewrites literal contents (e.g. a comparison
+# value like '[North]' must keep its brackets; only real identifiers lose
+# theirs).
+_STRING_LITERAL_SPLIT_RE = re.compile(r"('[^']*')")
 
 
 def _normalize_identifiers(sql_query: str) -> str:
     """
     Strips ANSI-style double-quoted identifiers down to their bare form,
-    e.g. SELECT SUM("Total") FROM data -> SELECT SUM(Total) FROM data.
+    e.g. SELECT SUM("Total") FROM data -> SELECT SUM(Total) FROM data,
+    and likewise T-SQL-style bracket-quoted identifiers ([Total] -> Total).
 
     BUG FIX (7.1a): one dataset's KPI file was regenerated using
     double-quoted identifiers for every column reference (SUM("Total"),
@@ -335,8 +347,17 @@ def _normalize_identifiers(sql_query: str) -> str:
     caller reaches first -- each is called independently by
     builder._build_measures_and_group_cols, not chained through a single
     shared preprocessing step.
+
+    Single-quoted string literals are left completely untouched (SQLite
+    uses single quotes for string values, so Attrition = 'Yes' and
+    strftime('%Y-%m', ...) pass through unchanged) -- normalization
+    applies only to the text outside them.
     """
-    return _QUOTED_IDENTIFIER_RE.sub(r"\1", sql_query)
+    segments = _STRING_LITERAL_SPLIT_RE.split(sql_query)
+    for i in range(0, len(segments), 2):  # even indices: outside any literal
+        segments[i] = _QUOTED_IDENTIFIER_RE.sub(r"\1", segments[i])
+        segments[i] = _BRACKET_IDENTIFIER_RE.sub(r"\1", segments[i])
+    return "".join(segments)
 
 
 def _strip_enclosing_parens(expr: str) -> str:
@@ -408,16 +429,30 @@ def _strip_where_clause(sql_query: str) -> tuple[str, str | None]:
     in one of online_retail's KPIs before Reflector correction) and
     returned as condition=None -- it adds nothing to translate as DAX.
 
-    Only ONE simple "<column> <op> <value>" condition is recognized
-    (matching every real WHERE across the 3 datasets' KPIs, e.g.
-    "Quantity > 0"). AND/OR-joined multi-condition WHEREs are not
-    recognized -- sql_without_where is returned unchanged (WHERE clause
-    left in place) so the caller's existing regexes fail to match it and
-    raise the standard "unsupported shape" error, rather than silently
-    dropping a filter condition the compiler doesn't actually understand.
+    Only ONE simple condition is recognized: a "<column> <op> <value>"
+    comparison (matching every real WHERE across the 3 datasets' KPIs,
+    e.g. "Quantity > 0") or a "<column> IS [NOT] NULL" null check (e.g.
+    the historical "Total Unique Customers" KPI's "CustomerID IS NOT
+    NULL"). Anything else -- an AND/OR-joined multi-condition WHERE, a
+    function call in the condition, etc. -- is returned as
+    "__UNRECOGNIZED__" so the caller raises the standard "unsupported
+    shape" error, rather than silently dropping a filter condition the
+    compiler doesn't actually understand.
     """
     match = _WHERE_CLAUSE_RE.search(sql_query)
     if not match:
+        # No recognized WHERE form -- but a WHERE keyword may still be
+        # present in an unrecognized form (e.g. AND-joined conditions the
+        # regex above couldn't match). On a GROUP BY query that leftover
+        # WHERE would otherwise be silently dropped: the GROUP BY path
+        # parses only the SELECT list, so it would translate the measure
+        # as if the filter didn't exist. Fail closed instead. String
+        # literals are excluded from the check so a value like 'somewhere'
+        # (matched only via a real word boundary) or a literal containing
+        # the word WHERE can never trip it.
+        without_literals = _STRING_LITERAL_SPLIT_RE.sub("''", sql_query)
+        if re.search(r"\bWHERE\b", without_literals, re.IGNORECASE):
+            return sql_query, "__UNRECOGNIZED__"
         return sql_query, None
 
     condition_text = match.group("condition").strip()
@@ -434,6 +469,12 @@ def _strip_where_clause(sql_query: str) -> tuple[str, str | None]:
             # normal unsupported-shape error instead of guessing.
             return sql_query, "__UNRECOGNIZED__"
         col = cond_match.group("col")
+        if cond_match.group("op") is None:
+            # "<column> IS [NOT] NULL" null-check form.
+            op = "IS NOT NULL" if cond_match.group("null_not") else "IS NULL"
+            condition = f"col::{col}::{op}::"
+            without_where = sql_query[: match.start()] + (f" {trailing}" if trailing else "")
+            return without_where.strip(), condition
         op = _SQL_TO_DAX_OP.get(cond_match.group("op"))
         if op is None:
             return sql_query, "__UNRECOGNIZED__"
@@ -464,10 +505,19 @@ def _apply_where_filter(translation: DaxTranslation, condition: str | None, tabl
     if condition == "__UNRECOGNIZED__":
         raise SQLToDaxError(
             "WHERE clause present but its condition shape is not recognized "
-            "(only a single 'column OP value' comparison is supported)."
+            "(only a single 'column OP value' comparison or a single "
+            "'column IS [NOT] NULL' check is supported)."
         )
     _, col, op, val = condition.split("::")
-    wrapped = f"CALCULATE({translation.expression}, '{table_name}'[{col}] {op} {val})"
+    if op in ("IS NULL", "IS NOT NULL"):
+        # SQL null check -> DAX blank comparison, e.g. the historical
+        # "Total Unique Customers" KPI: COUNT(DISTINCT CustomerID) ...
+        # WHERE CustomerID IS NOT NULL -> CALCULATE(DISTINCTCOUNT(
+        # 'data'[CustomerID]), 'data'[CustomerID] <> BLANK()).
+        dax_comparison = "= BLANK()" if op == "IS NULL" else "<> BLANK()"
+        wrapped = f"CALCULATE({translation.expression}, '{table_name}'[{col}] {dax_comparison})"
+    else:
+        wrapped = f"CALCULATE({translation.expression}, '{table_name}'[{col}] {op} {val})"
     return DaxTranslation(
         expression=wrapped,
         aggregation=translation.aggregation,

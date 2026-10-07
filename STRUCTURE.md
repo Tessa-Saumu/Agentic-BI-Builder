@@ -13,7 +13,7 @@ agentic-bi-builder/
 │   ├── sql_executor.py
 │   └── state.py
 │
-├── assets/                      # Individual Report Visuals,  Repository artifacts  
+├── assets/                     # Individual Report Visuals, Repository artifacts
 │   ├── chinook/
 │   ├── hr_analytics/
 │   ├── online_retail/
@@ -44,6 +44,7 @@ agentic-bi-builder/
 │       └── visual.py
 │
 ├── scripts/                    # Execution pipelines
+│   ├── _scaffold_phase1_reference.sh   # HISTORICAL ONLY -- do not run (overwrites modules)
 │   ├── prepare_chinook.py
 │   ├── profile_datasets.py
 │   ├── run_domain_kpi_all.py
@@ -51,36 +52,57 @@ agentic-bi-builder/
 │   ├── run_reflector_stress_test.py
 │   └── run_pbir_compiler_all.py
 │
+├── evidence/                   # Committed, auditable run artifacts (flagship bundle)
+│   └── v1/
+│       ├── README.md           # provenance: historical vs. regenerated
+│       ├── metadata.json       # env, models, dates, regen commands
+│       ├── chinook/            # profile, KPIs, query results, reflection,
+│       └── online_retail/      # sabotaged KPIs, stress reflection, run summary
+│
 ├── data/
 │   ├── raw/                    # Input datasets
 │   │   ├── chinook.csv
+│   │   ├── chinook.sqlite
 │   │   ├── hr_analytics.csv
 │   │   └── online_retail.csv
 │   │
-│   └── profiles/               # Generated profiling + KPI outputs
+│   └── profiles/               # Generated profiling + KPI outputs (gitignored)
 │       ├── *_profile.json
 │       ├── *_kpis.json
 │       └── *_reflection.json
 │
+├── output/                     # Generated reports (gitignored except .gitkeep)
+│   ├── .gitkeep
+│   ├── reference_report/       # hand-authored reverse-engineering artifact (tracked)
+│   └── <dataset>_report/       # per-run .pbip output + run_summary.json
+│
 ├── tests/                      # Unit tests
+│   ├── fixtures/
+│   │   ├── online_retail_profile.json
+│   │   └── kpis/               # deterministic KPI fixtures per dataset
+│   │       ├── chinook_kpis.json
+│   │       ├── hr_analytics_kpis.json
+│   │       └── online_retail_kpis.json
 │   ├── test_domain_kpi.py
+│   ├── test_end_to_end.py
+│   ├── test_graph.py
 │   ├── test_llm_client.py
 │   ├── test_pbir_compiler.py
+│   ├── test_prepare_chinook.py
 │   ├── test_profiler.py
 │   ├── test_reflector.py
 │   └── test_sql_executor.py
 │
-├── notebooks/                  # Exploration / validation - not utilized for implementation
-│   ├── 01_dataset_profiling_exploration.ipynb 
+├── notebooks/                  # Exploration / validation notebooks
+│   ├── README.md
 │   ├── 02_kpi_proposal_review.ipynb
-│   ├── 03_sql_validation_and_reflection.ipynb
-│   └── 04_pbir_output_inspection.ipynb
+│   └── 03_sql_validation_and_reflection.ipynb
 │
 ├── docs/
 │   ├── Project Description.md
-│   └── pbir_reference.md
+│   └── pbir reference.md
 │
-├── run_agent.py                # Entry point
+├── run_agent.py                # Entry point (writes <output>/run_summary.json)
 ├── requirements.txt
 ├── .gitignore
 ├── .env.example
@@ -88,4 +110,6 @@ agentic-bi-builder/
 └── STRUCTURE.md
 ```
 
-Generated artifacts (`output/`, PBIR builds, caches) omitted for clarity. The structure above reflects core system design. See `.gitignore` for what is excluded from version control.
+Generated artifacts (`output/<dataset>_report/`, `data/profiles/`, caches)
+omitted for clarity except where noted. See `.gitignore` for what is
+excluded from version control.
