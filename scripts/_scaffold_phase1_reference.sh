@@ -1,8 +1,14 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# Agentic BI Builder — Project Structure Creation Script
-# Run from the project root directory (where README.md lives)
+# HISTORICAL SCAFFOLD SCRIPT — DO NOT RUN.
+#
+# This script was used only during Phase 1 (June 2026) to create
+# the initial directory structure. Running it will overwrite
+# `agent/state.py` and other implemented modules with stubs.
+# Preserved here for reference only.
 # ─────────────────────────────────────────────────────────────
+echo "ERROR: HISTORICAL SCAFFOLD SCRIPT — DO NOT RUN." >&2
+exit 1
 set -e
 echo "🤖 Scaffolding Agentic BI Builder project structure..."
 

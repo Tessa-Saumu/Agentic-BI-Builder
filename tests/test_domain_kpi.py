@@ -33,8 +33,13 @@ from agent.domain_kpi import (  # noqa: E402
 
 @pytest.fixture
 def retail_profile() -> DataProfile:
+    # Loads the committed test fixture (generated from data/raw/online_retail.csv
+    # via scripts/profile_datasets.py) so pytest runs green on a fresh clone
+    # without requiring gitignored data/profiles/ artifacts. Regenerate and
+    # commit tests/fixtures/online_retail_profile.json if DataProfile's schema
+    # in agent/profiler.py changes.
     fixture_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "profiles", "online_retail_profile.json"
+        os.path.dirname(__file__), "fixtures", "online_retail_profile.json"
     )
     with open(fixture_path) as f:
         raw = json.load(f)

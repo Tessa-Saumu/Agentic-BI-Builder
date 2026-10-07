@@ -8,12 +8,12 @@ Usage (from project root, with venv activated):
 Expects these files to already exist:
     data/raw/chinook.csv          ← Chinook sample DB (combined CSV - previously pointed at chinook.sqllite)
     data/raw/online_retail.csv    ← UCI Online Retail dataset
-    data/raw/hr.csv               ← IBM HR Analytics dataset
+    data/raw/hr_analytics.csv     ← IBM HR Analytics dataset
 
 Creates:
     data/profiles/chinook_profile.json
     data/profiles/online_retail_profile.json
-    data/profiles/hr_profile.json
+    data/profiles/hr_analytics_profile.json
 """
 
 from __future__ import annotations
@@ -54,8 +54,8 @@ DATASETS = [
         "label": "Online Retail",
     },
     {
-        "input": "data/raw/hr.csv",
-        "output": "data/profiles/hr_profile.json",
+        "input": "data/raw/hr_analytics.csv",
+        "output": "data/profiles/hr_analytics_profile.json",
         "label": "HR Analytics",
     },
 ]
@@ -135,7 +135,7 @@ def run_all() -> None:
             HR Analytics CSV:
             https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset
             → Download WA_Fn-UseC_-HR-Employee-Attrition.csv
-            → Rename to hr.csv → place in data/raw/
+            → Rename to hr_analytics.csv → place in data/raw/
             (Requires free Kaggle account)
             """
         }
