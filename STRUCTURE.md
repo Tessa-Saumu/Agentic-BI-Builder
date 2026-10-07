@@ -83,6 +83,7 @@ agentic-bi-builder/
 │   │       ├── chinook_kpis.json
 │   │       ├── hr_analytics_kpis.json
 │   │       └── online_retail_kpis.json
+│   ├── test_demo_app.py        # deterministic demo (demo_core.py + app.py)
 │   ├── test_domain_kpi.py
 │   ├── test_end_to_end.py
 │   ├── test_graph.py
@@ -100,16 +101,26 @@ agentic-bi-builder/
 │
 ├── docs/
 │   ├── Project Description.md
-│   └── pbir reference.md
+│   └── pbir_reference.md        # 1,129-line reverse-engineered PBIR spec
+│
+├── .github/workflows/tests.yml # CI: pytest on Python 3.10 / 3.11 / 3.12
+├── .streamlit/config.toml      # demo app config (Community Cloud / local)
 │
 ├── run_agent.py                # Entry point (writes <output>/run_summary.json)
-├── requirements.txt
+├── app.py                      # Streamlit demo UI (deterministic, zero API keys)
+├── demo_core.py                # Headless demo core (no Streamlit, no LLM imports)
+├── requirements.txt            # agent + tests
+├── requirements-demo.txt       # adds streamlit, for app.py only
 ├── .gitignore
 ├── .env.example
+├── LICENSE                     # MIT
 ├── README.md
-└── STRUCTURE.md
+├── STRUCTURE.md
+├── FLAGSHIP_GAP_AUDIT.md              # gap audit (G1–G25) + Definition of Done
+├── FLAGSHIP_IMPLEMENTATION_PLAN.md    # phased plan + execution log
+└── FLAGSHIP_VERIFICATION_CHECKLIST.md # DoD verification, item by item
 ```
 
-Generated artifacts (`output/<dataset>_report/`, `data/profiles/`, caches)
-omitted for clarity except where noted. See `.gitignore` for what is
-excluded from version control.
+Generated artifacts (`output/<dataset>_report/`, `data/profiles/`, caches, and
+the demo's temp-dir `.pbip`/zip output) omitted for clarity except where noted.
+See `.gitignore` for what is excluded from version control.

@@ -2,6 +2,16 @@
 
 > A LangGraph-powered analytics agent that profiles a structured dataset, proposes relevant KPIs, generates and validates SQL queries, reflects on its own outputs, and compiles a real Power BI Project (.pbip) folder, ready to open directly in Power BI Desktop.
 
+**Scope (v1):** single-table CSV/SQLite input → typed LangGraph workflow → LLM-proposed KPIs with SQL → real SQLite execution → one bounded self-reflection retry → deterministic Power BI Project (`.pbip`) output. Windows + Power BI Desktop are required to open that output. No multi-table joins, no Power BI Service publishing, no hosted service, no production deployment — see [Known Limitations and Stretch Goals](#known-limitations-and-stretch-goals).
+
+**At a glance**
+
+- **What it is:** a bounded v1 prototype — a CLI agent plus a custom PBIR/TMDL compiler, 264 tests, a committed [evidence bundle](evidence/v1/), and a solo implementation under structured mentorship ([credits](#what-i-built--credits)).
+- **Input:** one CSV (or SQLite) file, single table, SQLite SQL dialect only.
+- **SQL→DAX:** a regex translator over a bounded set of measure shapes; anything outside it fails closed (the KPI is dropped, and a report with fewer than 4 translatable visuals is rejected outright).
+- **Output:** a `.pbip` folder that opens in **Power BI Desktop for Windows** and embeds the compiling machine's absolute CSV path.
+- **What it is not:** a production system, a hosted API, a multi-user tool, or an "autonomous data analyst."
+
 ---
 
 ## Problem Statement
@@ -35,24 +45,50 @@ CSV input
 .pbip folder → open in Power BI Desktop
 ```
 
+## Design Decisions
+
+A few choices are worth calling out explicitly, because they are the difference between "an agent that runs" and "an agent whose behaviour you can predict":
+
+- **LangGraph for topology, not for agents.** The graph's topology *enforces* the one-retry policy — `sql_executor_retry` has exactly one outgoing edge, straight to the PBIR compiler, so there is no path back to the reflector — rather than enforcing it with a counter in state that any node could accidentally mutate. The retry budget is load-bearing, not conventional, and `tests/test_graph.py` asserts the wiring so a future edit cannot silently create a loop.
+- **Pydantic + provider-native structured output.** LLM responses are validated against typed models (`KPISpec`, `DomainKPIResponse`, `ReflectionNote`) using each provider's native schema mechanism (Gemini `response_schema`, Mistral `chat.parse(response_format=…)`), not LangChain output parsers or regex-on-text. A malformed response is a validation error at the boundary, not a mystery three nodes later. This is also why `langchain-*` appeared as an unused dependency in older revisions and has been removed.
+- **Regex SQL→DAX over a full parser.** The translator recognises a bounded family of SQL shapes built from five DAX primitives (`SUM`, `AVERAGE`, `COUNT`, `DIVIDE`, `IF`) — plain aggregates, `COUNT(*)`, `ROUND(...)`, ratios, row-wise products (`SUM(a*b)` → `SUMX`), `COUNT(DISTINCT …)` → `DISTINCTCOUNT`, grouped chart queries, the conditional-percentage `CASE WHEN` idiom, and single-condition `WHERE` filters — and **fails closed** on anything else. A full SQL parser (e.g. `sqlglot`) would broaden support but also mask failures; failing closed keeps an unsupported KPI visible to the user instead of silently mistranslated into plausible-looking DAX. For a v1 with declared scope, that trade is worth more than coverage.
+- **Metadata-only at KPI-proposal time; sampled rows at reflection time.** The domain/KPI prompt sends schema metadata (column names, inferred types, null rates, distinct counts) but deliberately strips sample values and min/max, to reduce the data-exposure surface and improve output stability. The reflector *does* see up to 10 sampled result rows per KPI (`MAX_ROWS_IN_PROMPT`, on top of the 20-row storage cap in `QueryResult`), because reviewing numbers requires seeing numbers. The split is deliberate and tested — see `tests/test_domain_kpi.py::test_excludes_sample_values`.
+- **In-memory SQLite for execution.** Nothing persists: every run loads the CSV into a fresh in-memory instance. Execution is deterministic, sandboxed, and free of cleanup state, at the cost of no cross-run memory. It also makes the LLM's SQL safe to run — the only thing it can touch is a throwaway table named `data`.
+- **Fail-open per KPI, fail-closed per build.** A single KPI that cannot be translated, or that still fails after its one retry, is dropped with an error entry rather than crashing the run; but a report that ends up with fewer than 4 translatable visuals (`MIN_VISUALS_REQUIRED`) is **rejected entirely** rather than shipped as a silently thin dashboard. Partial useful output beats deceptive emptiness — and an empty-ish report is exactly what a demo should refuse to produce.
+
+---
+
 ## Demo
 
 ![Demo: CSV to Power BI report, end to end](assets/demo.gif)
 
 *Terminal run of `run_agent.py` against the Chinook dataset: profiling, then KPI generation, SQL execution, reflection, and compile, followed by opening the resulting `.pbip` in Power BI Desktop.*
 
+### Try it without an API key
+
+`app.py` is a Streamlit app that runs the **deterministic half** of the pipeline — profiler → committed KPI specs → real SQLite execution → PBIR/TMDL compilation → downloadable `.pbip` — for all three datasets. It makes no LLM calls (it never imports the LLM layer, which `tests/test_demo_app.py` asserts mechanically), so it needs no keys and no network:
+
+```bash
+pip install -r requirements-demo.txt
+streamlit run app.py
+```
+
+The KPI specs it compiles are the committed fixtures in `tests/fixtures/kpis/` — real provider output from a recorded run, the same fixtures the no-network regression tests use — so the demo shows what the agent's validated output actually becomes on disk: the `.pbip` it hands you is the same artifact `run_agent.py` writes for those specs, with the one machine-specific part being the absolute CSV path embedded in the M partition. Opening the result requires Power BI Desktop on Windows (see [Report path coupling](#known-limitations-and-stretch-goals)).
+
+**Public URL:** the demo is written to deploy on Streamlit Community Cloud (`.streamlit/config.toml` included, no secrets required); the deployed link will be recorded here and in `FLAGSHIP_VERIFICATION_CHECKLIST.md` once the app is published. Until then, run it locally with the two commands above.
+
 ---
 
 ## Quickstart
 
 ```bash
-git clone https://github.com/your-username/agentic-bi-builder
-cd agentic-bi-builder
+git clone https://github.com/Tessa-Saumu/Agentic-BI-Builder
+cd Agentic-BI-Builder
 
 python -m venv .venv
 source .venv/bin/activate        # .venv\Scripts\activate on Windows
 
-pip install -r requirements.txt
+pip install -r requirements.txt  # add -r requirements-demo.txt for the Streamlit demo
 
 cp .env.example .env             # add GEMINI_API_KEY and/or MISTRAL_API_KEY
                                   # set LLM_PROVIDER=gemini or mistral
@@ -60,7 +96,9 @@ cp .env.example .env             # add GEMINI_API_KEY and/or MISTRAL_API_KEY
 python run_agent.py --input data/raw/chinook.csv --output output/chinook_report
 ```
 
-Then open `output/chinook_report/report.pbip` in Power BI Desktop.
+Then open `output/chinook_report/chinook.pbip` in Power BI Desktop (Windows). The
+`.pbip` filename comes from the input dataset, so it is `online_retail.pbip` and
+`hr_analytics.pbip` for the other two.
 
 The other two reference datasets run the same way:
 
@@ -68,6 +106,36 @@ The other two reference datasets run the same way:
 python run_agent.py --input data/raw/online_retail.csv --output output/online_retail_report
 python run_agent.py --input data/raw/hr_analytics.csv --output output/hr_report
 ```
+
+**What you will see.** Each node prints as it runs (profile written, KPIs
+written, per-KPI SQL pass/fail, reflection verdict), then:
+
+```
+[PBIR Compiler] Writing .pbip folder to 'output/chinook_report'...
+✅ Report written to: output/chinook_report (2 page(s), 5 visual(s))
+Note: compiled report embeds the absolute CSV path; to move the report to another machine, re-run run_agent.py there.
+
+--- Timing ---
+  profiler            0.03s
+  domain_kpi         10.91s
+  sql_executor        0.02s
+  reflector           1.59s
+  pbir_compiler       0.00s
+  TOTAL              12.55s
+
+--- Reflection ---
+  No issues found. All 5 KPI(s) passed review as-is.
+```
+
+(Timings above are the recorded Mistral/Chinook run; LLM nodes dominate and
+vary by provider — see [Per-Node Timing](#per-node-timing).) Alongside the
+`.pbip` folder the run writes `output/chinook_report/run_summary.json` (machine-readable:
+KPI names kept/dropped, per-node timings, errors, page/visual counts, provider,
+model, temperature, package versions) and `data/profiles/chinook_{profile,kpis}.json`.
+Exit code is `0` on a written report with no errors and `1` otherwise.
+
+No API key? Run the deterministic demo instead — see
+[Try it without an API key](#try-it-without-an-api-key).
 
 ---
 
@@ -117,6 +185,8 @@ The agent emits a valid Power BI Project: two independent "documents," `<name>.R
 
 Each `<table>.tmdl` is where a KPI actually becomes a Power BI artifact: one `measure` block per KPI holding its DAX expression, one `column` block per source column, and a `partition` block whose `source` is the Power Query M script that loads the CSV at Desktop open or refresh time. There is no separate "data model" JSON file or "connections" file; the model schema, the DAX measures, and the data-source connection are all part of this one TMDL file per table. This structure is reverse-engineered from a real `.pbip` export (see `docs/pbir_reference.md`) and modelled as Pydantic classes for the JSON files plus a dedicated TMDL writer for the SemanticModel side, so the agent populates typed Python objects rather than hand-building either format as raw strings.
 
+For the record: `output/reference_report/` in this repository is the trimmed, hand-curated sample export that the format was reverse-engineered *from*. It is a reference artifact, not pipeline output — nothing in `agent/` or `pbir/` reads or writes it. Everything the pipeline produces lands in `output/<dataset>_report/`.
+
 ---
 
 ## Tech Stack
@@ -136,6 +206,22 @@ Each `<table>.tmdl` is where a KPI actually becomes a Power BI artifact: one `me
 
 ---
 
+## What I built / Credits
+
+Agentic BI Builder was implemented by **Theresia (Tessa) Saumu** between June and August 2026 as a solo implementation project under structured mentorship, then consolidated in October 2026 (evidence bundle, verification tests, translator gap closure, this demo). All pipeline nodes (`agent/`), the PBIR/TMDL compiler (`pbir/`), the typed Pydantic models, the driver and validation scripts, the fault-injection harness, the test suite (216 tests at `v1.0.0`; 264 after consolidation), and the 1,129-line PBIR reference document (`docs/pbir_reference.md`) were authored by `Tessa-Saumu` — 123 of the 132 commits on `main` as of 2026-10-07.
+
+Credits to **Adeyeri Michael** ([`Mikehade`](https://github.com/Mikehade)), mentor — 9 of those 132 commits:
+
+- **Review and merges:** merged implementation PRs [#8–#13](https://github.com/Tessa-Saumu/Agentic-BI-Builder/pulls?q=is%3Apr+is%3Amerged) (PBIR reverse-engineering, profiler node, domain/KPI node, SQL executor + reflector nodes, PBIR compiler, full pipeline), with phase and acceptance-criteria review feedback on each. `#14` (final polish) and the `v1.0.0` release tag (2026-08-30) were merged/published by `Tessa-Saumu`.
+- **Commit [`cca0106`](https://github.com/Tessa-Saumu/Agentic-BI-Builder/commit/cca0106)** (2026-07-13): KPI-name uniqueness validation in `DomainKPIResponse`; reflector hardening that rejects duplicate KPI/`QueryResult` names before the LLM call and filters out notes referencing unknown KPIs; and the `reviewed_kpi_count` logging fix (the "no issues found across N KPIs" line previously printed `0`). Plus the tests covering all three (`agent/models.py`, `agent/reflector.py`, `tests/test_domain_kpi.py`, `tests/test_reflector.py`).
+- **Commit [`55578ac`](https://github.com/Tessa-Saumu/Agentic-BI-Builder/commit/55578ac)** (2026-06-15): early environment and scaffold setup — `.gitignore`, `.env.example`, module stubs for `agent/`, and the Phase-1 scaffold script now preserved (disabled) at `scripts/_scaffold_phase1_reference.sh`.
+
+The phase issues [#1–#7](https://github.com/Tessa-Saumu/Agentic-BI-Builder/issues?q=is%3Aissue+is%3Aclosed) and implementation PRs [#8–#14](https://github.com/Tessa-Saumu/Agentic-BI-Builder/pulls?q=is%3Apr) hold the full design discussion and review history; the open `V2:` issues (#15–#39) are explicitly *planned, not started*.
+
+This is **not** a production system, a product with users, or an autonomous analyst. It is a v1 bounded prototype built to demonstrate applied LLM workflow engineering: typed contracts, real execution as ground truth, a retry budget enforced by graph topology, and a deterministic compiler whose output opens in a real desktop product.
+
+---
+
 ## Test Datasets
 
 | Dataset | Domain | Source |
@@ -149,6 +235,8 @@ Each `<table>.tmdl` is where a KPI actually becomes a Power BI artifact: one `me
 ## Per-Dataset Results
 
 All three datasets run end-to-end via `run_agent.py` without crashing, under both supported LLM providers, on every KPI (5/5, no drops).
+
+**Provenance of the numbers in this section.** They come from the August 2026 confirmation round (`v1.0.0`, released 2026-08-30), run live against both providers on the developer's machine. Those runs' raw artifacts — KPI JSONs, reflection logs, `.pbip` folders — were not retained, so the tables and timings below are **historical**: reproducible from [Quickstart](#quickstart) with an API key, but not attached as files. What *is* attached is [`evidence/v1/`](evidence/v1/): a traceable bundle of July 2026 development-run artifacts (real KPI specs, sabotaged copies, stress-test reflections, the one organic reflector catch) plus profiles, query results, and run summaries regenerated deterministically on 2026-10-07 under the pinned environment. Its [README](evidence/v1/README.md) states which artifact is which, and documents the single compile-outcome delta against the historical run (Online Retail's `Total Unique Customers`, dropped then, compiled now — see [Failure Modes](#failure-modes-observed-and-fixed)).
 
 | Dataset | Domain Inferred | KPIs Generated | Reflection Fixes | Report Screenshot |
 |---|---|---|---|---|
@@ -180,6 +268,47 @@ The full breakdown below (per-provider KPI lists, timing, and the fault-injectio
 |---|---|---|---|---|---|
 | Mistral | HR/employee retention and satisfaction | Attrition Rate by Department, Average Job Satisfaction by Job Role, Monthly Income vs. Years at Company, Work-Life Balance by Overtime Status, Overall Employee Attrition Rate | No issues found | 3 / 5 | 20.78s |
 | Gemini | HR / Talent Analytics | Overall Attrition Rate, Attrition Rate by Department, Average Monthly Income by Years at Company, Work Environment and Job Satisfaction by Role, Attrition Rate by Overtime Requirement | No issues found | 3 / 5 | 19.69s |
+
+### Report screenshots (Power BI Desktop, Windows)
+
+Every page of every compiled report, exactly as Power BI Desktop renders it.
+Filenames encode provider and page number (`<provider>_page<N>_<short-desc>.png`);
+the two card pages in the Chinook pair are the ones the "Verified" note above
+compares across providers, and the deterministic demo (`app.py`) shows the
+Mistral set for whichever dataset you compile. Collapsed per dataset to keep
+this README scannable.
+
+<details>
+<summary>Chinook — 2 pages × 2 providers</summary>
+
+![Chinook report, Gemini run, page 1: card visuals showing $2.33K Total Sales Revenue and 5.44 Average Tracks per Invoice](assets/chinook/gemini_page1_revenue_tracks.png)
+![Chinook report, Gemini run, page 2: revenue by country, monthly revenue trend, and top artists by revenue charts](assets/chinook/gemini_page2_country_trend_artists.png)
+![Chinook report, Mistral run, page 1: card visuals showing Total Revenue and Average Tracks per Invoice](assets/chinook/mistral_page1_revenue_tracks.png)
+![Chinook report, Mistral run, page 2: revenue by country, monthly revenue trend, and top artists by revenue charts](assets/chinook/mistral_page2_country_trend_artists.png)
+
+</details>
+
+<details>
+<summary>Online Retail — 2 pages × 2 providers</summary>
+
+![Online Retail report, Gemini run, page 1: card visuals for Total Sales Revenue and Average Order Value](assets/online_retail/gemini_page1_revenue_aov.png)
+![Online Retail report, Gemini run, page 2: revenue by country, monthly sales trend, and top products by revenue charts](assets/online_retail/gemini_page2_country_trend_products.png)
+![Online Retail report, Mistral run, page 1: card visuals for Total Revenue and Average Order Value](assets/online_retail/mistral_page1_revenue_aov.png)
+![Online Retail report, Mistral run, page 2: revenue by country, monthly revenue trend, and top products by revenue charts](assets/online_retail/mistral_page2_country_trend_products.png)
+
+</details>
+
+<details>
+<summary>HR Analytics — 3 pages × 2 providers</summary>
+
+![HR Analytics report, Gemini run, page 1: Overall Attrition Rate card](assets/hr_analytics/gemini_page1_overall_attrition.png)
+![HR Analytics report, Gemini run, page 2: attrition rate by department and average monthly income by years at company charts](assets/hr_analytics/gemini_page2_department_and_income.png)
+![HR Analytics report, Gemini run, page 3: job satisfaction by role and work-life balance by overtime charts](assets/hr_analytics/gemini_page3_satisfaction_and_overtime.png)
+![HR Analytics report, Mistral run, page 1: Overall Employee Attrition Rate card](assets/hr_analytics/mistral_page1_overall_attrition.png)
+![HR Analytics report, Mistral run, page 2: attrition rate by department and average job satisfaction by job role bar charts](assets/hr_analytics/mistral_page2_department_and_satisfaction.png)
+![HR Analytics report, Mistral run, page 3: monthly income vs years at company and work-life balance by overtime status charts](assets/hr_analytics/mistral_page3_income_and_worklif.png)
+
+</details>
 
 ### Gemini vs. Mistral: Provider Comparison
 
@@ -279,12 +408,12 @@ Other known limitations:
 - **SQLite dialect only.** All generated SQL is validated against SQLite syntax; no other SQL dialect is supported.
 - **Regex-based SQL validation**, not a formal grammar. Built incrementally against observed LLM output and hardened against several real false-positive patterns (string literals, qualified column references, table aliases), but not a general-purpose SQL linter.
 - **Power BI Desktop only.** No Power BI Service publishing, scheduled refresh, or embedded deployment.
-- **CLI only.** No user interface; a Streamlit debugging UI was scoped as a stretch goal and not implemented.
+- **The agent itself is CLI-only.** It has no interactive frontend. `app.py` is a read-only demonstration of the deterministic half (committed KPI fixtures, no LLM calls), not a UI for running or steering the agent; a Streamlit debugging UI for live agent runs was scoped as a stretch goal and deliberately not implemented.
 - **One retry per flagged KPI.** A KPI still failing after its single retry, or with no concrete fix offered, is dropped from the output rather than surfaced as a partial/failed visual.
 
 Stretch goals not pursued in this MVP:
 - Multi-table joins / relational schema support
-- A debugging UI (Streamlit)
+- A debugging UI for live agent runs (Streamlit) — the deterministic demo in `app.py` is deliberately not this
 - Broader DAX pattern coverage (the `COUNT(DISTINCT)` null-filter gap above is already closed; multi-condition filters, time intelligence, and wider shape support remain future work)
 - Additional visual types and richer layout logic beyond the current 2–3-page groupings
 
@@ -298,10 +427,13 @@ See [`STRUCTURE.md`](STRUCTURE.md) for the full file tree.
 agent/            Core LangGraph pipeline nodes
 pbir/             PBIR compiler (models + compiler)
 scripts/          Standalone driver and validation scripts
-data/             Input datasets and generated profiling/KPI artifacts
-tests/            Unit tests (119 passing in test_pbir_compiler.py alone; 70+ across agent/)
-notebooks/         Exploration and validation notebooks
-docs/             PBIR reference documentation
+data/             Input datasets (generated profiles are gitignored)
+evidence/         Committed, dated run artifacts behind the results below
+tests/            264 tests (124 in test_pbir_compiler.py alone; 104 across agent/)
+notebooks/        Exploration and validation notebooks
+docs/             PBIR reference documentation (1,129 lines)
+app.py            Deterministic Streamlit demo (no API keys)
+demo_core.py      Headless core of that demo (unit-tested, no Streamlit import)
 run_agent.py      CLI entry point
 ```
 
@@ -309,16 +441,29 @@ run_agent.py      CLI entry point
 
 ## Setup
 
+Supported Python: **3.10, 3.11, 3.12** (see `requirements.txt`; CI matrix in
+`.github/workflows/tests.yml`).
+
 ```bash
-git clone https://github.com/your-username/agentic-bi-builder
-cd agentic-bi-builder
+git clone https://github.com/Tessa-Saumu/Agentic-BI-Builder
+cd Agentic-BI-Builder
 pip install -r requirements.txt
 cp .env.example .env       # add your GEMINI_API_KEY or MISTRAL_API_KEY
 python run_agent.py --input data/raw/chinook.csv --output output/chinook_report
 ```
 
-Then open `output/chinook_report/report.pbip` in Power BI Desktop.
+Then open `output/chinook_report/chinook.pbip` in Power BI Desktop (Windows).
+
+**Fresh-clone note:** after `pip install -r requirements.txt`, a bare `pytest`
+should report **261 passed, 3 skipped, 0 errors, 0 failures** with no additional
+setup steps — no generated profiles to produce, no API keys, no network access
+(every LLM call in the suite is mocked). The 3 skips are the Streamlit UI tests
+in `tests/test_demo_app.py`, which need the demo-only dependency: install
+`requirements-demo.txt` as well and all **264** tests run and pass.
+`data/profiles/` is created by the pipeline when you run it and is gitignored.
+To regenerate schema profiles for all three datasets without an API key, run
+`python scripts/profile_datasets.py`.
 
 ---
 
-*In development: June/July 2026*
+*In development: June–August 2026 (`v1.0.0` released 2026-08-30). Flagship consolidation — evidence bundle, verification tests, translator gap closure, deterministic public demo: October 2026.*
