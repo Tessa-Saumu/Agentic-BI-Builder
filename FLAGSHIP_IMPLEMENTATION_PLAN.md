@@ -280,13 +280,13 @@ This phase does **not** require new live LLM runs if provider keys are unavailab
 - The absolute-path limitation is visible to readers before they encounter it.
 
 ### Acceptance criteria
-- [ ] `evidence/v1/metadata.json` exists and documents Python, packages, model, temperature, date.
-- [ ] At least one dataset (Chinook) has a complete evidence subdirectory: profile, KPI specs, reflection log, query results, run summary.
-- [ ] README fault-injection section contains explicit denominators and the organic-fire-rate note.
-- [ ] Grep for "24/24" in README shows only qualified uses.
-- [ ] Model identifiers are byte-identical across `.env.example`, `agent/llm_client.py`, and README tech-stack table.
-- [ ] `temperature=0` is set in Gemini generation config with a parity comment.
-- [ ] README Known Limitations includes the absolute-path paragraph.
+- [x] `evidence/v1/metadata.json` exists and documents Python, packages, model, temperature, date.
+- [x] At least one dataset (Chinook) has a complete evidence subdirectory: profile, KPI specs, reflection log, query results, run summary.
+- [x] README fault-injection section contains explicit denominators and the organic-fire-rate note.
+- [x] Grep for "24/24" in README shows only qualified uses.
+- [x] Model identifiers are byte-identical across `.env.example`, `agent/llm_client.py`, and README tech-stack table.
+- [x] `temperature=0` is set in Gemini generation config with a parity comment.
+- [x] README Known Limitations includes the absolute-path paragraph.
 
 ### Rollback / risk considerations
 - **Live keys unavailable:** The plan explicitly accommodates this by allowing historical artifacts with clear labelling. Do not delay the rest of the flagship repair waiting on API access — label honestly and move on. A reader respects "historical artifacts, regen command provided" more than fabricated fresh runs.
@@ -352,11 +352,11 @@ Close the two small documented SQL→DAX translation gaps (high ROI: demonstrate
 - STRUCTURE.md is accurate enough that a reader can navigate the repo from it.
 
 ### Acceptance criteria
-- [ ] A `COUNT(DISTINCT col) ... WHERE col IS NOT NULL` KPI successfully translates to DAX and appears as a measure in the compiled report.
-- [ ] A bracket-quoted `SELECT SUM([Total]) ...` KPI successfully validates against the profile and executes.
-- [ ] 4 new tests in `test_pbir_compiler.py` cover both shapes; all pass.
-- [ ] Zero-byte notebooks are removed with a brief explanatory note in `notebooks/README.md`.
-- [ ] `STRUCTURE.md` filenames match actual `ls` output (verified by diff).
+- [x] A `COUNT(DISTINCT col) ... WHERE col IS NOT NULL` KPI successfully translates to DAX and appears as a measure in the compiled report.
+- [x] A bracket-quoted `SELECT SUM([Total]) ...` KPI successfully validates against the profile and executes.
+- [x] 4 new tests in `test_pbir_compiler.py` cover both shapes; all pass.
+- [x] Zero-byte notebooks are removed with a brief explanatory note in `notebooks/README.md`.
+- [x] `STRUCTURE.md` filenames match actual `ls` output (verified by diff).
 
 ### Rollback / risk considerations
 - **SQLite bracket quoting:** T-SQL `[col]` is not standard SQLite. Verify behavior before relying on it: if stripping brackets is fragile (e.g. breaks on column names that *legitimately* contain spaces or brackets), keep the translator fix but treat bracket-quoted columns as a translator-shape extension rather than an executor normalization. It is acceptable for the fix to be at the validator layer (strip brackets before checking against the profile) without modifying executor behavior, as long as a documented test covers the LLM output pattern.
@@ -585,4 +585,68 @@ Stop investing engineering time on flagship consolidation when any of the follow
 - **`PROJECT_EVIDENCE.md` not present in repository**: `FLAGSHIP_GAP_AUDIT.md` and `FLAGSHIP_IMPLEMENTATION_PLAN.md` reference `PROJECT_EVIDENCE.md` (`PROJECT_EVIDENCE_AGENTICBI.md`) as the source audit input, and git history (`356670c`, `0fd62b8`, `6fed674`) preserves the historical KPI and reflection JSON artifacts that were uncommitted in `ea7bbac`. Relevant when assembling `evidence/v1/` in Phase 3.
 - **Notebook 01 & 02 secondary cell references to `hr.csv` / `hr_profile.json`**: While G2 targeted `scripts/profile_datasets.py` and `notebooks/03_sql_validation_and_reflection.ipynb`, `notebooks/01_data_profiling.ipynb` (cells 14–16) and `notebooks/02_domain_and_kpi_inference.ipynb` (cell 3 comment `# "hr"`) still contain legacy `"hr"` / `hr.csv` references. Recorded for backlog consideration.
 - **`scripts/run_domain_kpi_all.py`, `scripts/run_sql_and_reflect.py`, and `scripts/run_reflector_stress_test.py` exit codes**: Like `run_agent.py` prior to G7, these standalone helper scripts still exit with code `0` when a dataset run records errors. If any of these scripts are ever wired into automated checks, they would benefit from the same non-zero exit convention applied to `run_agent.py` in G7.
+
+---
+
+## Execution Log — Phase 3 & Phase 4
+
+### Pre-Change Inspection (assumptions checked before editing)
+
+- **`PROJECT_EVIDENCE.md` still absent.** Confirmed not present in the checkout (same as the Phase 1–2 finding). Proceeded from `FLAGSHIP_GAP_AUDIT.md`, this plan, the working tree, and git history (fetched `main` to recover historical artifacts).
+- **Baseline suite green:** `245 - 8 = 237 passed` before changes (`rm -rf data/profiles && pytest`), matching the Phase 2 log.
+- **G15 three-way model-ID mismatch confirmed:** `.env.example` says `gemini-3.5-flash`, `agent/llm_client.py` defaulted to `gemini-3.1-flash`, README said `gemini-3.1-flash` / `open-mixtral-8x7b` / `mistral-large`. No test asserts on exact model strings; only `tests/test_end_to_end.py` checks the `temperature` summary key's *presence*.
+- **No live keys available** (no `.env` in repo; sandbox has no LLM-API network access), so G8 followed the plan's historical-label path. Historical artifacts verified recoverable and internally consistent at `6fed674` (2026-07-18); all 5 historical Chinook KPIs execute and translate under current code.
+- **G20 gaps reproduced before fixing:** `COUNT(DISTINCT …) … WHERE … IS NOT NULL` raised `SQLToDaxError`; `SUM([Total])` raised `SQLToDaxError`. Verified SQLite executes bracket-quoted SQL natively and `_validate_sql_columns` already tolerates both shapes (live check, zero violations) — so the fix is translator-only, as the plan's verify-first note anticipated.
+- **G21/G22 as described:** both notebooks 0 bytes; `data/processed/` holds only `.gitkeep` with zero references anywhere (grep); `prepare_chinook.py` writes to `data/raw/chinook.csv`; `output/.gitkeep` missing; `STRUCTURE.md` stale in all the ways listed.
+
+### Completed Tasks
+
+#### Phase 3 — Evidence Bundle and Claim Discipline
+- **G8 (Committed evidence bundle `evidence/v1/`)**: 15 valid JSONs (92K) + README for Chinook and Online Retail. Historical LLM artifacts (KPI specs, sabotaged copies, stress reflections, the organic Online Retail reflection) extracted verbatim from `6fed674`; profiles, query results, and run summaries regenerated deterministically with the pinned env (profiler → historical KPI specs → executor → compiler → `_build_run_summary`, same shape as `tests/test_end_to_end.py`); Chinook reflection recorded as an explicitly-labeled `notes: []` placeholder (the historical run flagged zero issues and `run_reflector` writes no file in that case by design). `metadata.json` records env, canonical models, temperature, dates, regen commands, and honest limits (historical provider/model IDs unknown; July runs ≠ August confirmation tables; retail compile delta vs. the historical run). No `.pbip` committed (absolute host paths; regenerable). Verified `evidence/` is not gitignored and contains no absolute local paths.
+- **G15 (Model identifier + temperature consistency)**: canonicalized on the `.env.example` values — Gemini `gemini-3.5-flash` / `gemini-3.1-pro`, Mistral `mistral-large-latest` / `mistral-medium-latest` — byte-identical across `agent/llm_client.py`, `.env.example` (already canonical, untouched), and the README tech-stack row. Added `"temperature": 0` to the Gemini `generate_content` config with the parity comment, and `temperature = 0` (was `None`) for the Gemini branch of `run_agent._build_run_summary`.
+- **G16 (Narrowed reliability claim)**: README fault-injection summary now carries in-line denominators (12/round = 2 datasets × 3 fault types per provider; 24/24 cumulative across two rounds; HR excluded; 6/24 adjacent-category diagnoses) plus the organic-fire-rate sentence (0–1 KPI/dataset on natural runs; capability demonstrated by planted faults) and a pointer to `evidence/v1/`. Grep confirms the single remaining `24/24` is qualified and no unqualified `reliable` describes the Reflector in README.
+- **G17 (Absolute-path documentation)**: new "Report path coupling" paragraph in README Known Limitations; one-line console note in `run_agent.py` after a successful write.
+
+#### Phase 4 — Bounded Functional and Cleanliness Polish
+- **G20 (Translator gaps closed)**: `pbir/compiler/sql_to_dax.py` now (1) recognizes `WHERE <col> IS [NOT] NULL`, mapping to `CALCULATE(<measure>, 'table'[col] [=|<>] BLANK())` — the exact historical "Total Unique Customers" query now yields `CALCULATE(DISTINCTCOUNT('data'[CustomerID]), 'data'[CustomerID] <> BLANK())`; (2) normalizes T-SQL `[bracket]` identifiers to bare form in `_normalize_identifiers` (string-literal contents excluded, so `'[North]'` is untouched); (3) fails closed on any other unrecognized WHERE form instead of silently dropping it on grouped queries (see Deviations). README gap language updated in all three spots (Failure Modes, DAX-coverage paragraph, stretch goal) to record the fix while keeping fail-closed scope explicit.
+- **G21 (Empty notebooks removed)**: deleted both 0-byte notebooks; added `notebooks/README.md` with the planned explanatory note.
+- **G22 (Dead scaffolding cleaned)**: removed `data/processed/`; created `output/.gitkeep` (verified trackable); rewrote `STRUCTURE.md` to match `ls` (evidence tree, fixtures, new test files, scaffold-script location, `run_summary.json`, notebooks README, actual `pbir reference.md` filename, `chinook.sqlite`).
+
+### Files Changed
+- `evidence/v1/README.md`, `evidence/v1/metadata.json` (added)
+- `evidence/v1/chinook/`, `evidence/v1/online_retail/` — 7 JSONs each: historical `*_kpis.json`, `*_kpis_sabotaged.json`, `*_stress_test_reflection.json` (+ historical `online_retail_reflection.json`; labeled placeholder `chinook_reflection.json`); regenerated `*_profile.json`, `*_query_results.json`, `*_run_summary.json` (added)
+- `agent/llm_client.py` (modified — canonical Gemini primary `gemini-3.5-flash`, `temperature=0` on Gemini path)
+- `run_agent.py` (modified — Gemini summary temperature `None` → `0`; absolute-path console note)
+- `pbir/compiler/sql_to_dax.py` (modified — `IS [NOT] NULL` WHERE support, bracket normalization, unrecognized-WHERE fail-closed guard)
+- `README.md` (modified — tech-stack model IDs, fault-injection denominators + organic note + evidence pointer, path-coupling paragraph, G20 gap-closure language)
+- `STRUCTURE.md` (modified — full tree reconciliation)
+- `notebooks/README.md` (added); `notebooks/01_…`, `notebooks/04_…` (deleted)
+- `data/processed/.gitkeep` (deleted with directory); `output/.gitkeep` (added)
+- `tests/test_pbir_compiler.py` (modified — 5 new tests: 2 translator + 2 compile-level not-dropped + 1 fail-closed hardening)
+- `tests/test_domain_kpi.py` (modified — 3 new validator tests: bracket tolerance, bracketed-hallucination still caught, `IS NOT NULL` keywords)
+- `FLAGSHIP_IMPLEMENTATION_PLAN.md` (modified — Phase 3 & 4 boxes checked, this log)
+- `.env.example` (verified already canonical — no change)
+
+### Test & Verification Results
+- **Full suite:** `rm -rf data/profiles && pytest -q` → `245 passed in ~5s` (237 baseline + 8 new), 0 failures/errors.
+- **New tests:** `TestSQLToDaxFlagshipHardening` (5) + 3 validator tests pass; full `test_pbir_compiler.py` + `test_domain_kpi.py` files green (153 passed).
+- **Grep audits:** single `24/24` occurrence is denominator-qualified; no `reliable` in README; model IDs byte-identical across all three files; `temperature=0` + parity comment present on both LLM paths; absolute-path paragraph present.
+- **Evidence audits:** all 15 JSONs validate via `json.tool`; `git check-ignore` confirms trackable; no absolute local paths in JSONs; total 92K.
+- **End-to-end (deterministic, no keys):** historical Online Retail KPI set → profiler → executor (5/5 pass) → compiler (5 visuals, 0 errors) → `write_pbip` to temp dir, with the `DISTINCTCOUNT` measure present in serialized `data.tmdl`. Chinook evidence regen likewise 5 visuals / 0 errors.
+- **Regression checks:** `python scripts/profile_datasets.py` profiles all 3 datasets (G2 intact); no fixture KPI SQL contains WHERE/brackets so G20 cannot alter e2e-test DAX; the two pre-existing WHERE translator tests pass unchanged (existing shapes byte-identical); `tests/test_llm_client.py` green (18 passed) after default-ID change.
+- **Lint/type/build:** none exist in this repo (no pyproject/setup.cfg/ruff/mypy config; CI runs `pytest` only) — nothing further to run; no new tooling added per minimum-scope constraint.
+
+### Deviations from Plan
+1. **Canonical Gemini primary is `gemini-3.5-flash`, not a 2.x ID (G15):** the plan suggested `gemini-2.0-flash`/`gemini-1.5-flash` as "stable", but Google's lifecycle docs (checked 2026-10-07) show the 2.x Flash line retiring 2026-10-20, while `gemini-3.5-flash` (the `.env.example` primary) is GA with retirement no earlier than May 2027. Reconciled toward `.env.example` instead; rationale recorded in a `llm_client.py` comment. `.env.example` consequently needed no edit.
+2. **Evidence bundle covers Chinook + Online Retail, not Chinook-only (G8):** the minimum bar was Chinook, but the committed Online Retail organic-reflection log is the direct artifact behind the G16 organic-fire-rate sentence, so including it (one more small directory, same method) was the coherent choice. HR omitted as planned (no reflection/stress logs ever committed).
+3. **Historical provider labeled unknown, not Mistral (G8):** the plan's "Mistral is easier" assumed provider attribution, but the historical runs' provider/model IDs were never recorded, and the available signals conflict (`6fed674` message mentions Mistral; KPI naming/domain style matches the README's Gemini description). `metadata.json` + evidence README label this explicitly rather than asserting an unverifiable provider.
+4. **Unrecognized-WHERE fail-closed guard added alongside the two G20 shapes:** implementing `IS [NOT] NULL` exposed that other unrecognized WHERE forms on GROUP BY queries were *silently dropped* (e.g. historical "Top 10 Best Selling Products" translated to plain `SUM(...)` with its filter ignored) — a direct violation of the module's documented fail-closed contract, in the same function being edited. The ~6-line guard converts that to `SQLToDaxError`; verified it cannot newly break any real KPI (the only historical WHERE forms are the two now-recognized `IS NOT NULL` ones; no fixture SQL uses WHERE). One hardening test added (5th test in the new class).
+5. **Three validator tests added in `tests/test_domain_kpi.py` beyond the planned 4-in-`test_pbir_compiler.py`:** the plan's acceptance criterion (4 tests in `test_pbir_compiler.py` covering both shapes) is met exactly; the validator tests lock in the verified no-change-needed behavior (brackets tolerated, bracketed hallucinations still caught) so a future validator rewrite cannot silently regress it.
+6. **`run_reflector_stress_test.py` docstring untouched (G16):** the plan's "e.g." assumed unqualified reliability wording there, but the file contains none (verified by grep) — the step was a no-op, not an omission.
+
+### Newly Discovered Problems (Added to Backlog — Not Modified in Phases 3–4)
+- **Phase 2 log provenance over-claim for the HR test fixture:** `tests/fixtures/kpis/{chinook,online_retail}_kpis.json` match `0fd62b8` byte-for-byte (modulo trailing newline), but `tests/fixtures/kpis/hr_analytics_kpis.json` matches *no* committed `data/profiles` artifact — its 5 KPI names match the README's HR/Mistral confirmation-run table instead, suggesting the SQL was reconstructed rather than recovered verbatim. The fixture is valid (executes, translates, e2e green), but its "recovered from git history" provenance note is inaccurate for HR. Relevant if Phase 5 cites fixture provenance.
+- **Confirm `gemini-3.1-pro` fallback ID against the live API when keys are next available:** reconciliation picked the ID already shared by `.env.example` and code, but only the primary (`gemini-3.5-flash`) was corroborated against current model-lifecycle docs; the fallback was not independently verified (no keys in this environment). If a future run reports an unknown-model error on fallback, update all three places together (noted in the `llm_client.py` comment).
+- **README Tech Stack row vs. retired-era IDs in git history:** older commits/docs may still reference `open-mixtral-8x7b`; only the live README row was reconciled (Phase 5 owns the remaining README polish).
+- **`.venv/` created in repo root for verification runs:** gitignored (`venv/`/`.venv/` patterns) and not committed; safe to delete. Left in place for the next phase's test runs.
 

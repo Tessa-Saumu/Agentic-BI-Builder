@@ -1,0 +1,367 @@
+{
+  "dataset": "chinook",
+  "generated_utc": "2026-10-07T19:17:06.684647+00:00",
+  "method": "deterministic regeneration: historical KPI SQL from 6fed674 executed against data/raw/chinook.csv with the pinned environment (agent/sql_executor.py); no LLM calls",
+  "kpi_sql_source": "chinook_kpis.json (historical, 6fed674)",
+  "results": [
+    {
+      "kpi_name": "Total Sales Revenue",
+      "sql_query": "SELECT SUM(Total) AS total_revenue FROM data",
+      "status": "pass",
+      "row_count": 1,
+      "columns": [
+        "total_revenue"
+      ],
+      "result_rows": [
+        {
+          "total_revenue": 2328.600000000004
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Monthly Revenue Trend",
+      "sql_query": "SELECT strftime('%Y-%m', InvoiceDate) AS sales_month, SUM(Total) AS monthly_revenue FROM data GROUP BY sales_month ORDER BY sales_month ASC",
+      "status": "pass",
+      "row_count": 60,
+      "columns": [
+        "sales_month",
+        "monthly_revenue"
+      ],
+      "result_rows": [
+        {
+          "sales_month": "2009-01",
+          "monthly_revenue": 35.64
+        },
+        {
+          "sales_month": "2009-02",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-03",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-04",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-05",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-06",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-07",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-08",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-09",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-10",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-11",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2009-12",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2010-01",
+          "monthly_revenue": 52.62
+        },
+        {
+          "sales_month": "2010-02",
+          "monthly_revenue": 46.62
+        },
+        {
+          "sales_month": "2010-03",
+          "monthly_revenue": 44.62
+        },
+        {
+          "sales_month": "2010-04",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2010-05",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2010-06",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2010-07",
+          "monthly_revenue": 37.62
+        },
+        {
+          "sales_month": "2010-08",
+          "monthly_revenue": 37.62
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Revenue by Billing Country",
+      "sql_query": "SELECT BillingCountry, SUM(Total) AS country_revenue FROM data GROUP BY BillingCountry ORDER BY country_revenue DESC",
+      "status": "pass",
+      "row_count": 24,
+      "columns": [
+        "BillingCountry",
+        "country_revenue"
+      ],
+      "result_rows": [
+        {
+          "BillingCountry": "USA",
+          "country_revenue": 523.0600000000003
+        },
+        {
+          "BillingCountry": "Canada",
+          "country_revenue": 303.9599999999999
+        },
+        {
+          "BillingCountry": "France",
+          "country_revenue": 195.09999999999994
+        },
+        {
+          "BillingCountry": "Brazil",
+          "country_revenue": 190.09999999999997
+        },
+        {
+          "BillingCountry": "Germany",
+          "country_revenue": 156.48
+        },
+        {
+          "BillingCountry": "United Kingdom",
+          "country_revenue": 112.85999999999999
+        },
+        {
+          "BillingCountry": "Czech Republic",
+          "country_revenue": 90.24000000000001
+        },
+        {
+          "BillingCountry": "Portugal",
+          "country_revenue": 77.23999999999998
+        },
+        {
+          "BillingCountry": "India",
+          "country_revenue": 75.25999999999999
+        },
+        {
+          "BillingCountry": "Chile",
+          "country_revenue": 46.62
+        },
+        {
+          "BillingCountry": "Ireland",
+          "country_revenue": 45.62
+        },
+        {
+          "BillingCountry": "Hungary",
+          "country_revenue": 45.62
+        },
+        {
+          "BillingCountry": "Austria",
+          "country_revenue": 42.62
+        },
+        {
+          "BillingCountry": "Finland",
+          "country_revenue": 41.620000000000005
+        },
+        {
+          "BillingCountry": "Netherlands",
+          "country_revenue": 40.62
+        },
+        {
+          "BillingCountry": "Norway",
+          "country_revenue": 39.62
+        },
+        {
+          "BillingCountry": "Sweden",
+          "country_revenue": 38.620000000000005
+        },
+        {
+          "BillingCountry": "Poland",
+          "country_revenue": 37.620000000000005
+        },
+        {
+          "BillingCountry": "Italy",
+          "country_revenue": 37.620000000000005
+        },
+        {
+          "BillingCountry": "Denmark",
+          "country_revenue": 37.620000000000005
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Top Primary Artists by Tracks Sold",
+      "sql_query": "SELECT primary_artist, SUM(track_count) AS total_tracks_sold FROM data GROUP BY primary_artist ORDER BY total_tracks_sold DESC LIMIT 10",
+      "status": "pass",
+      "row_count": 10,
+      "columns": [
+        "primary_artist",
+        "total_tracks_sold"
+      ],
+      "result_rows": [
+        {
+          "primary_artist": "Iron Maiden",
+          "total_tracks_sold": 146
+        },
+        {
+          "primary_artist": "U2",
+          "total_tracks_sold": 99
+        },
+        {
+          "primary_artist": "Metallica",
+          "total_tracks_sold": 95
+        },
+        {
+          "primary_artist": "Led Zeppelin",
+          "total_tracks_sold": 91
+        },
+        {
+          "primary_artist": "Deep Purple",
+          "total_tracks_sold": 79
+        },
+        {
+          "primary_artist": "Pearl Jam",
+          "total_tracks_sold": 65
+        },
+        {
+          "primary_artist": "Lost",
+          "total_tracks_sold": 56
+        },
+        {
+          "primary_artist": "Os Paralamas Do Sucesso",
+          "total_tracks_sold": 55
+        },
+        {
+          "primary_artist": "Foo Fighters",
+          "total_tracks_sold": 51
+        },
+        {
+          "primary_artist": "R.E.M.",
+          "total_tracks_sold": 48
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Top Customers and Purchase Metrics",
+      "sql_query": "SELECT CustomerId, COUNT(InvoiceId) AS purchase_frequency, SUM(Total) AS total_spent, AVG(distinct_tracks_purchased) AS avg_distinct_tracks FROM data GROUP BY CustomerId ORDER BY total_spent DESC LIMIT 15",
+      "status": "pass",
+      "row_count": 15,
+      "columns": [
+        "CustomerId",
+        "purchase_frequency",
+        "total_spent",
+        "avg_distinct_tracks"
+      ],
+      "result_rows": [
+        {
+          "CustomerId": 6,
+          "purchase_frequency": 7,
+          "total_spent": 49.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 26,
+          "purchase_frequency": 7,
+          "total_spent": 47.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 57,
+          "purchase_frequency": 7,
+          "total_spent": 46.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 46,
+          "purchase_frequency": 7,
+          "total_spent": 45.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 45,
+          "purchase_frequency": 7,
+          "total_spent": 45.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 28,
+          "purchase_frequency": 7,
+          "total_spent": 43.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 37,
+          "purchase_frequency": 7,
+          "total_spent": 43.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 24,
+          "purchase_frequency": 7,
+          "total_spent": 43.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 25,
+          "purchase_frequency": 7,
+          "total_spent": 42.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 7,
+          "purchase_frequency": 7,
+          "total_spent": 42.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 44,
+          "purchase_frequency": 7,
+          "total_spent": 41.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 43,
+          "purchase_frequency": 7,
+          "total_spent": 40.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 5,
+          "purchase_frequency": 7,
+          "total_spent": 40.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 48,
+          "purchase_frequency": 7,
+          "total_spent": 40.62,
+          "avg_distinct_tracks": 5.428571428571429
+        },
+        {
+          "CustomerId": 34,
+          "purchase_frequency": 7,
+          "total_spent": 39.620000000000005,
+          "avg_distinct_tracks": 5.428571428571429
+        }
+      ],
+      "error_message": null
+    }
+  ]
+}

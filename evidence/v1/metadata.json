@@ -1,0 +1,62 @@
+{
+  "bundle_version": "v1.0",
+  "collected_date": "2026-10-07",
+  "collected_by": "manual (flagship repair, Phase 3)",
+  "python_version": "3.11.2",
+  "package_versions": {
+    "langgraph": "1.2.14",
+    "pandas": "2.3.3",
+    "numpy": "2.4.6",
+    "pydantic": "2.13.5",
+    "google-genai": "2.28.0",
+    "mistralai": "3.1.0",
+    "python-dotenv": "1.2.4",
+    "openpyxl": "3.1.5",
+    "pytest": "9.1.1"
+  },
+  "historical_artifacts_source": {
+    "commit": "6fed674380f08d8cebb38e8b1838b082dbb7e89a",
+    "commit_subject": "Reran full pipeline; generated mistral assets",
+    "commit_date": "2026-07-18",
+    "files": [
+      "chinook_kpis.json",
+      "chinook_kpis_sabotaged.json",
+      "chinook_stress_test_reflection.json",
+      "online_retail_kpis.json",
+      "online_retail_reflection.json",
+      "online_retail_kpis_sabotaged.json",
+      "online_retail_stress_test_reflection.json"
+    ],
+    "extraction": "verbatim via `git show 6fed674:data/profiles/<file>` (no edits)"
+  },
+  "historical_provider": "unknown (not recorded at collection time; commit message mentions Mistral but KPI naming/domain style resembles the Gemini confirmation outputs -- conflicting weak signals, see evidence/v1/README.md)",
+  "historical_model_ids": "unknown (developer's local .env was never committed)",
+  "historical_temperature": "unknown (temperature=0 was set on the Mistral path in v1.0.0 code; the Gemini path gained temperature=0 during flagship hardening on 2026-10-07)",
+  "providers_used_for_regeneration": "none (deterministic path only; no LLM calls)",
+  "default_model_by_provider": {
+    "mistral": "mistral-large-latest",
+    "gemini": "gemini-3.5-flash"
+  },
+  "default_model_fallback_by_provider": {
+    "mistral": "mistral-medium-latest",
+    "gemini": "gemini-3.1-pro"
+  },
+  "temperature": 0,
+  "datasets_committed": ["chinook", "online_retail"],
+  "datasets_omitted": {
+    "hr_analytics": "no reflection or stress-test logs were ever committed for HR; its committed KPI sets predate the confirmation run"
+  },
+  "reflection_coverage": {
+    "chinook": "placeholder notes=[] file: historical run flagged zero issues and run_reflector writes no file in that case (by design)",
+    "online_retail": "historical online_retail_reflection.json (1 organic catch, timestamp-granularity fix, 2026-07-18)"
+  },
+  "known_compile_delta_vs_historical_run": "regenerated online_retail_run_summary.json shows 5/5 KPIs compiled; the historical run dropped 'Total Unique Customers' at compile time (COUNT(DISTINCT ...) WHERE ... IS NOT NULL gap, closed by G20 flagship hardening). Historical *_kpis.json SQL is unchanged.",
+  "regeneration_command_live": "python run_agent.py --input data/raw/<dataset>.csv --output output/<dataset>_report (requires GEMINI_API_KEY or MISTRAL_API_KEY)",
+  "regeneration_command_deterministic": "python scripts/profile_datasets.py, then load evidence/v1/<dataset>/<dataset>_kpis.json into AgentState and run run_sql_executor -> run_pbir_compiler -> _build_run_summary (see tests/test_end_to_end.py for the executable form)",
+  "known_limitations": [
+    "COUNT(DISTINCT col) ... WHERE col IS NOT NULL now supported (G20); other unsupported SQL shapes still fail closed",
+    "single-table scope",
+    "SQLite only",
+    "Power BI Desktop Windows-only"
+  ]
+}

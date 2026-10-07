@@ -1,0 +1,48 @@
+{
+  "dataset_name": "chinook",
+  "input_path": "chinook.csv",
+  "input_path_sha256": "df1e14e98c36",
+  "timestamp_utc": "2026-10-07T19:17:06.693819+00:00",
+  "python_version": "3.11.2",
+  "package_versions": {
+    "langgraph": "1.2.14",
+    "pandas": "2.3.3",
+    "pydantic": "2.13.5",
+    "google-genai": "2.28.0"
+  },
+  "provider": "gemini",
+  "model": "gemini-3.5-flash",
+  "model_fallback": "gemini-3.1-pro",
+  "temperature": 0,
+  "kpi_count_initial": 5,
+  "kpi_count_final": 5,
+  "kpi_names_initial": [
+    "Total Sales Revenue",
+    "Monthly Revenue Trend",
+    "Revenue by Billing Country",
+    "Top Primary Artists by Tracks Sold",
+    "Top Customers and Purchase Metrics"
+  ],
+  "kpi_names_final": [
+    "Total Sales Revenue",
+    "Monthly Revenue Trend",
+    "Revenue by Billing Country",
+    "Top Primary Artists by Tracks Sold",
+    "Top Customers and Purchase Metrics"
+  ],
+  "kpis_dropped": [],
+  "reflection_notes_count": 0,
+  "reflection_fixes_applied": 0,
+  "reflection_dropped_without_fix": 0,
+  "node_timings_seconds": {
+    "profiler": 0.007,
+    "sql_executor": 0.006,
+    "pbir_compiler": 0.003
+  },
+  "total_seconds": 0.016,
+  "errors": [],
+  "report_written": true,
+  "page_count": 3,
+  "visual_count": 5,
+  "pbip_output_dir": "output/chinook_report"
+}

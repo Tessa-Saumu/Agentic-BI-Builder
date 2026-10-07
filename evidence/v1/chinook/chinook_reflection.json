@@ -1,0 +1,5 @@
+{
+  "dataset": "chinook",
+  "notes": [],
+  "provenance": "No reflection log was written by the historical run: agent/reflector.py logs to a JSON file only when it flags >=1 issue, and the historical Chinook run reported zero issues (consistent with the README confirmation table). This placeholder records that absence explicitly; it is NOT a historical artifact."
+}

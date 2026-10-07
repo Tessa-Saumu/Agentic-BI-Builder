@@ -1,0 +1,48 @@
+{
+  "dataset": "online_retail",
+  "planted_issues": {
+    "Total Revenue": {
+      "issue_type": "sql_error",
+      "description": "Column/table reference corrupted: 'SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data' -> 'SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM dataset'"
+    },
+    "Total Unique Customers": {
+      "issue_type": "wrong_aggregation",
+      "description": "COUNT replaced with SUM (may fail or silently change meaning): 'SELECT COUNT(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL' -> 'SELECT SUM(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL'"
+    },
+    "Top 10 Countries by Revenue": {
+      "issue_type": "null_heavy",
+      "description": "Query replaced with a GROUP BY on 'CustomerID', a column with a real documented null rate in this dataset's profile: 'SELECT Country, SUM(Quantity * UnitPrice) AS total_revenue FROM data GROUP BY Country ORDER BY total_revenue DESC LIMIT 10' -> 'SELECT CustomerID, COUNT(*) AS row_count FROM data GROUP BY CustomerID'"
+    }
+  },
+  "reflection_notes": [
+    {
+      "kpi_name": "Total Revenue",
+      "issue_type": "sql_error",
+      "description": "The query fails to execute because it references the table name 'dataset' instead of the actual table name 'data'.",
+      "fix_instruction": "Change the FROM clause to reference the correct table name 'data'.",
+      "fixed_sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data"
+    },
+    {
+      "kpi_name": "Total Unique Customers",
+      "issue_type": "wrong_aggregation",
+      "description": "The query uses SUM(DISTINCT CustomerID) instead of COUNT(DISTINCT CustomerID), which sums the numerical customer IDs together instead of counting the unique number of customers.",
+      "fix_instruction": "Replace SUM(DISTINCT CustomerID) with COUNT(DISTINCT CustomerID) to correctly measure the distinct customer count.",
+      "fixed_sql_query": "SELECT COUNT(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL"
+    },
+    {
+      "kpi_name": "Top 10 Countries by Revenue",
+      "issue_type": "wrong_aggregation",
+      "description": "The query groups by CustomerID and counts rows instead of grouping by Country, calculating the total revenue (Quantity * UnitPrice), sorting by revenue descending, and limiting to the top 10.",
+      "fix_instruction": "Rewrite the query to group by Country, calculate the sum of Quantity * UnitPrice, order descending by this sum, and apply a LIMIT of 10.",
+      "fixed_sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS revenue FROM data GROUP BY Country ORDER BY revenue DESC LIMIT 10"
+    }
+  ],
+  "n_planted": 3,
+  "n_caught": 3,
+  "n_fixed": 3,
+  "kpis_to_retry": [
+    "Total Revenue",
+    "Total Unique Customers",
+    "Top 10 Countries by Revenue"
+  ]
+}

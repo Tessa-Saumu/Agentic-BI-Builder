@@ -1,0 +1,237 @@
+{
+  "dataset": "online_retail",
+  "generated_utc": "2026-10-07T19:17:10.218353+00:00",
+  "method": "deterministic regeneration: historical KPI SQL from 6fed674 executed against data/raw/online_retail.csv with the pinned environment (agent/sql_executor.py); no LLM calls",
+  "kpi_sql_source": "online_retail_kpis.json (historical, 6fed674)",
+  "results": [
+    {
+      "kpi_name": "Total Revenue",
+      "sql_query": "SELECT SUM(Quantity * UnitPrice) AS total_revenue FROM data",
+      "status": "pass",
+      "row_count": 1,
+      "columns": [
+        "total_revenue"
+      ],
+      "result_rows": [
+        {
+          "total_revenue": 9747747.93400317
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Total Unique Customers",
+      "sql_query": "SELECT COUNT(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL",
+      "status": "pass",
+      "row_count": 1,
+      "columns": [
+        "unique_customers"
+      ],
+      "result_rows": [
+        {
+          "unique_customers": 4372
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Top 10 Countries by Revenue",
+      "sql_query": "SELECT Country, SUM(Quantity * UnitPrice) AS total_revenue FROM data GROUP BY Country ORDER BY total_revenue DESC LIMIT 10",
+      "status": "pass",
+      "row_count": 10,
+      "columns": [
+        "Country",
+        "total_revenue"
+      ],
+      "result_rows": [
+        {
+          "Country": "United Kingdom",
+          "total_revenue": 8187806.364001113
+        },
+        {
+          "Country": "Netherlands",
+          "total_revenue": 284661.54000000015
+        },
+        {
+          "Country": "EIRE",
+          "total_revenue": 263276.81999999826
+        },
+        {
+          "Country": "Germany",
+          "total_revenue": 221698.20999999862
+        },
+        {
+          "Country": "France",
+          "total_revenue": 197403.90000000002
+        },
+        {
+          "Country": "Australia",
+          "total_revenue": 137077.26999999973
+        },
+        {
+          "Country": "Switzerland",
+          "total_revenue": 56385.35000000009
+        },
+        {
+          "Country": "Spain",
+          "total_revenue": 54774.57999999997
+        },
+        {
+          "Country": "Belgium",
+          "total_revenue": 40910.95999999998
+        },
+        {
+          "Country": "Sweden",
+          "total_revenue": 36595.91
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Top 10 Best Selling Products by Quantity",
+      "sql_query": "SELECT Description, SUM(Quantity) AS total_quantity FROM data WHERE Description IS NOT NULL GROUP BY Description ORDER BY total_quantity DESC LIMIT 10",
+      "status": "pass",
+      "row_count": 10,
+      "columns": [
+        "Description",
+        "total_quantity"
+      ],
+      "result_rows": [
+        {
+          "Description": "WORLD WAR 2 GLIDERS ASSTD DESIGNS",
+          "total_quantity": 53847
+        },
+        {
+          "Description": "JUMBO BAG RED RETROSPOT",
+          "total_quantity": 47363
+        },
+        {
+          "Description": "ASSORTED COLOUR BIRD ORNAMENT",
+          "total_quantity": 36381
+        },
+        {
+          "Description": "POPCORN HOLDER",
+          "total_quantity": 36334
+        },
+        {
+          "Description": "PACK OF 72 RETROSPOT CAKE CASES",
+          "total_quantity": 36039
+        },
+        {
+          "Description": "WHITE HANGING HEART T-LIGHT HOLDER",
+          "total_quantity": 35317
+        },
+        {
+          "Description": "RABBIT NIGHT LIGHT",
+          "total_quantity": 30680
+        },
+        {
+          "Description": "MINI PAINT SET VINTAGE ",
+          "total_quantity": 26437
+        },
+        {
+          "Description": "PACK OF 12 LONDON TISSUES ",
+          "total_quantity": 26315
+        },
+        {
+          "Description": "PACK OF 60 PINK PAISLEY CAKE CASES",
+          "total_quantity": 24753
+        }
+      ],
+      "error_message": null
+    },
+    {
+      "kpi_name": "Chronological Sales Trend",
+      "sql_query": "SELECT substr(InvoiceDate, 1, 10) AS InvoiceDate, SUM(Quantity * UnitPrice) AS sales_amount FROM data GROUP BY substr(InvoiceDate, 1, 10) ORDER BY InvoiceDate ASC",
+      "status": "pass",
+      "row_count": 305,
+      "columns": [
+        "InvoiceDate",
+        "sales_amount"
+      ],
+      "result_rows": [
+        {
+          "InvoiceDate": "2010-12-01",
+          "sales_amount": 58635.56000000026
+        },
+        {
+          "InvoiceDate": "2010-12-02",
+          "sales_amount": 46207.27999999991
+        },
+        {
+          "InvoiceDate": "2010-12-03",
+          "sales_amount": 45620.4599999999
+        },
+        {
+          "InvoiceDate": "2010-12-05",
+          "sales_amount": 31383.95000000016
+        },
+        {
+          "InvoiceDate": "2010-12-06",
+          "sales_amount": 53860.180000000015
+        },
+        {
+          "InvoiceDate": "2010-12-07",
+          "sales_amount": 45059.05000000015
+        },
+        {
+          "InvoiceDate": "2010-12-08",
+          "sales_amount": 44189.839999999866
+        },
+        {
+          "InvoiceDate": "2010-12-09",
+          "sales_amount": 52532.13000000003
+        },
+        {
+          "InvoiceDate": "2010-12-10",
+          "sales_amount": 57404.91000000017
+        },
+        {
+          "InvoiceDate": "2010-12-12",
+          "sales_amount": 17240.92000000005
+        },
+        {
+          "InvoiceDate": "2010-12-13",
+          "sales_amount": 35379.34000000009
+        },
+        {
+          "InvoiceDate": "2010-12-14",
+          "sales_amount": 42843.290000000205
+        },
+        {
+          "InvoiceDate": "2010-12-15",
+          "sales_amount": 29443.69000000013
+        },
+        {
+          "InvoiceDate": "2010-12-16",
+          "sales_amount": 48334.34999999993
+        },
+        {
+          "InvoiceDate": "2010-12-17",
+          "sales_amount": 43534.19000000001
+        },
+        {
+          "InvoiceDate": "2010-12-19",
+          "sales_amount": 7517.309999999992
+        },
+        {
+          "InvoiceDate": "2010-12-20",
+          "sales_amount": 24741.750000000015
+        },
+        {
+          "InvoiceDate": "2010-12-21",
+          "sales_amount": 47097.939999999915
+        },
+        {
+          "InvoiceDate": "2010-12-22",
+          "sales_amount": 6134.569999999999
+        },
+        {
+          "InvoiceDate": "2010-12-23",
+          "sales_amount": 11796.310000000025
+        }
+      ],
+      "error_message": null
+    }
+  ]
+}

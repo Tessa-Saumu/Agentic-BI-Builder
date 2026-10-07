@@ -1,0 +1,48 @@
+{
+  "dataset_name": "online_retail",
+  "input_path": "online_retail.csv",
+  "input_path_sha256": "c35975c40d0e",
+  "timestamp_utc": "2026-10-07T19:17:10.266261+00:00",
+  "python_version": "3.11.2",
+  "package_versions": {
+    "langgraph": "1.2.14",
+    "pandas": "2.3.3",
+    "pydantic": "2.13.5",
+    "google-genai": "2.28.0"
+  },
+  "provider": "gemini",
+  "model": "gemini-3.5-flash",
+  "model_fallback": "gemini-3.1-pro",
+  "temperature": 0,
+  "kpi_count_initial": 5,
+  "kpi_count_final": 5,
+  "kpi_names_initial": [
+    "Total Revenue",
+    "Total Unique Customers",
+    "Top 10 Countries by Revenue",
+    "Top 10 Best Selling Products by Quantity",
+    "Chronological Sales Trend"
+  ],
+  "kpi_names_final": [
+    "Total Revenue",
+    "Total Unique Customers",
+    "Top 10 Countries by Revenue",
+    "Top 10 Best Selling Products by Quantity",
+    "Chronological Sales Trend"
+  ],
+  "kpis_dropped": [],
+  "reflection_notes_count": 0,
+  "reflection_fixes_applied": 0,
+  "reflection_dropped_without_fix": 0,
+  "node_timings_seconds": {
+    "profiler": 0.802,
+    "sql_executor": 2.713,
+    "pbir_compiler": 0.001
+  },
+  "total_seconds": 3.516,
+  "errors": [],
+  "report_written": true,
+  "page_count": 2,
+  "visual_count": 5,
+  "pbip_output_dir": "output/online_retail_report"
+}

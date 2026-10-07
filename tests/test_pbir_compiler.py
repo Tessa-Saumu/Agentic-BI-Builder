@@ -365,6 +365,112 @@ class TestSQLToDaxQuotedIdentifiers:
         assert "\"Active\"" in t.expression or "'Active'" in t.expression
 
 
+class TestSQLToDaxFlagshipHardening:
+    """
+    G20 regression coverage (flagship hardening): the two documented
+    translator gaps -- `COUNT(DISTINCT col) ... WHERE col IS NOT NULL`
+    (the README's "known remaining gap", from the historical Online
+    Retail "Total Unique Customers" KPI) and T-SQL-style bracket-quoted
+    identifiers (`[Total]`, observed in real LLM output) -- plus the
+    fail-closed guard that an unrecognized WHERE form must raise rather
+    than be silently dropped on grouped queries.
+    """
+
+    def test_count_distinct_with_is_not_null_filter(self):
+        # The exact historical query shape that originally failed: the
+        # IS NOT NULL filter becomes a DAX blank comparison wrapping the
+        # DISTINCTCOUNT measure.
+        t = translate(
+            "SELECT COUNT(DISTINCT CustomerID) AS unique_customers "
+            "FROM data WHERE CustomerID IS NOT NULL",
+            "data",
+        )
+        assert t.expression == (
+            "CALCULATE(DISTINCTCOUNT('data'[CustomerID]), "
+            "'data'[CustomerID] <> BLANK())"
+        )
+        assert t.aggregation == "DISTINCTCOUNT"
+        assert t.source_column == "CustomerID"
+
+    def test_count_distinct_is_not_null_kpi_survives_compilation(self):
+        profile = DataProfile(
+            source_path="data/raw/tiny.csv",
+            source_table=None,
+            row_count=10,
+            column_count=3,
+            is_single_row=False,
+            columns={
+                "CustomerID": ColumnProfile(inferred_dtype="string", null_count=1, null_rate=0.1, distinct_count=9),
+                "Country": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
+                "Total": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
+            },
+        )
+        kpi_specs = [
+            KPISpec(name="Unique Customers", description="d", sql_query="SELECT COUNT(DISTINCT CustomerID) AS unique_customers FROM data WHERE CustomerID IS NOT NULL", chart_type="card", reasoning="r"),
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM(Total) AS Total FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="By Country", description="d", sql_query="SELECT Country, SUM(Total) AS Total FROM data GROUP BY Country", chart_type="barChart", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.errors == []
+        assert result.pbir_project is not None
+        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
+        # The compiled report carries the DISTINCTCOUNT measure for the
+        # null-filtered KPI (not dropped, not mistranslated).
+        expressions = [m.expression for m in result.pbir_project.data_table.measures]
+        assert any("DISTINCTCOUNT('data'[CustomerID])" in e for e in expressions)
+
+    def test_bracket_quoted_aggregate(self):
+        t = translate("SELECT SUM([Total]) AS total FROM data", "data")
+        assert t.expression == "SUM('data'[Total])"
+
+    def test_bracket_quoted_kpi_survives_compilation(self):
+        profile = DataProfile(
+            source_path="data/raw/tiny.csv",
+            source_table=None,
+            row_count=10,
+            column_count=2,
+            is_single_row=False,
+            columns={
+                "Total": ColumnProfile(inferred_dtype="float", null_count=0, null_rate=0.0, distinct_count=10),
+                "BillingCountry": ColumnProfile(inferred_dtype="string", null_count=0, null_rate=0.0, distinct_count=3),
+            },
+        )
+        kpi_specs = [
+            KPISpec(name="Total", description="d", sql_query="SELECT SUM([Total]) AS total FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Average", description="d", sql_query="SELECT AVG([Total]) AS avg_total FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="Count", description="d", sql_query="SELECT COUNT(*) AS n FROM data", chart_type="card", reasoning="r"),
+            KPISpec(name="By Country", description="d", sql_query="SELECT [BillingCountry], SUM([Total]) AS revenue FROM data GROUP BY [BillingCountry]", chart_type="barChart", reasoning="r"),
+        ]
+        query_results = [
+            QueryResult(kpi_name=k.name, sql_query=k.sql_query, status="pass", row_count=1, columns=[], result_rows=[])
+            for k in kpi_specs
+        ]
+        state = AgentState(data_profile=profile, kpi_specs=kpi_specs, query_results=query_results)
+        result = run_pbir_compiler(state)
+
+        assert result.errors == []
+        assert result.pbir_project is not None
+        assert sum(len(p.visuals) for p in result.pbir_project.pages) == 4
+
+    def test_unrecognized_where_on_grouped_query_fails_closed(self):
+        # An AND-joined WHERE is outside the supported single-condition set.
+        # On a GROUP BY query the old code translated the SELECT list as if
+        # the filter didn't exist (silent drop); it must raise instead.
+        with pytest.raises(SQLToDaxError):
+            translate(
+                "SELECT Region, SUM(Amount) AS total FROM data "
+                "WHERE Amount > 0 AND Region IS NOT NULL GROUP BY Region",
+                "data",
+            )
+
+
 class TestSQLToDaxWrappedRatioExpressions:
     """
     BUG FIX 7.1b regression coverage: a ratio/percentage expression

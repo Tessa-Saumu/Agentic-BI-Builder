@@ -124,7 +124,7 @@ Each `<table>.tmdl` is where a KPI actually becomes a Power BI artifact: one `me
 | Layer | Tools |
 |---|---|
 | Agent orchestration | LangGraph |
-| LLM | Google Gemini (`gemini-3.1-flash` / `gemini-3.1-pro`) or Mistral AI (`open-mixtral-8x7b` / `mistral-large`) |
+| LLM | Google Gemini (`gemini-3.5-flash` / `gemini-3.1-pro`) or Mistral AI (`mistral-large-latest` / `mistral-medium-latest`) |
 | Data profiling | pandas |
 | SQL execution | SQLite (`sqlite3`) |
 | Structured outputs | Pydantic, provider-native structured output (no LangChain) |
@@ -240,7 +240,11 @@ Mistral is consistently faster across every node in every run this round. The ga
 | Revenue by Country | wrong_aggregation | wrong_aggregation (exact) | Yes |
 | Monthly Revenue Trend | null_heavy | wrong_aggregation | Yes |
 
-12/12 planted issues caught this round, 12/12 had a fix offered, 0 missed. This is consistent with an earlier stress-test round run before the `builder.py`/`serialiser.py` fixes below (also 12/12), for 24/24 total across every stress test run to date. In every run, the `null_heavy` injection was categorised as `wrong_aggregation` rather than an exact match, a defensible alternate diagnosis, since the injected query's root problem (grouping by the wrong column) manifests as an aggregation error before it manifests as null-heaviness; the Reflector consistently identified the actual defect.
+12/12 planted issues caught this round (2 datasets × 3 fault types per provider, run under both providers), 12/12 had a fix offered, 0 missed. This is consistent with an earlier stress-test round run before the `builder.py`/`serialiser.py` fixes below (also 12/12), for 24/24 total across the two stress-test rounds to date (HR was not included in the stress harness). In every run, the `null_heavy` injection was categorised as `wrong_aggregation` rather than an exact match (6/24 adjacent-category diagnoses across both rounds), a defensible alternate diagnosis, since the injected query's root problem (grouping by the wrong column) manifests as an aggregation error before it manifests as null-heaviness; the Reflector consistently identified the actual defect.
+
+On the natural (non-sabotaged) confirmation runs reported above, the Reflector flagged issues in 0–1 KPI per dataset (one organic catch on Online Retail/Gemini for a timestamp-granularity issue). The Reflector's correction capability is demonstrated primarily by planted-fault evidence, not by a high organic error rate — because when the upstream SQL is well-formed, there is typically nothing for it to fix.
+
+Committed artifacts for one full stress-test round (profiles, KPI specs, sabotaged copies, stress reflections, regenerated query results and run summaries) live under [`evidence/v1/`](evidence/v1/) — see its README for provenance and regeneration commands.
 
 ### Failure Modes Observed (and Fixed)
 
@@ -252,7 +256,7 @@ Three real bugs were found via this validation pass and fixed before the confirm
 | Relative Power Query source path | All three datasets, both providers | `.pbip` failed to load in Power BI Desktop: "the supplied file path must be a valid absolute path" | Fixed: `serialiser.py`'s M-query builder resolves a relative path to absolute; an already-absolute path (POSIX or Windows) is left untouched |
 | Visual name exceeding Desktop's 50-character limit | Chinook and HR, Gemini only | Gemini's more descriptive KPI naming style produced `visual_id`s over 50 characters, which Desktop rejects outright at load time. Never triggered by Mistral's shorter naming style | Fixed: `serialiser.py` truncates `visual_id` to 50 chars consistently across the visual's folder name, its own `visual.json` name, and its filter names |
 
-**Known remaining gap, not fixed:** `COUNT(DISTINCT col) ... WHERE col IS NOT NULL` still fails SQL→DAX translation (observed once, Online Retail/Gemini, an earlier run's `Total Unique Customers` KPI). The report still built above the 4-visual minimum in that instance. Documented under Known Limitations below for a future `builder.py` fix.
+**Previously known gap, now fixed:** `COUNT(DISTINCT col) ... WHERE col IS NOT NULL` used to fail SQL→DAX translation (observed once, Online Retail/Gemini, an earlier run's `Total Unique Customers` KPI — the report still built above the 4-visual minimum in that instance). Closed during flagship hardening: the translator now recognises `IS [NOT] NULL` filter conditions (mapped to DAX blank comparisons inside `CALCULATE`) and T-SQL-style bracket-quoted identifiers (`[Total]`), with regression tests in `tests/test_pbir_compiler.py`. Any shape outside the supported set still fails closed.
 
 **No instances observed:** wrong domain inference, in any run, either provider.
 
@@ -260,13 +264,15 @@ Three real bugs were found via this validation pass and fixed before the confirm
 
 ## Known Limitations and Stretch Goals
 
-**DAX coverage is the largest limitation.** SQL→DAX translation is intentionally regex-based rather than a real SQL parser, and covers only basic measure expressions (`SUM`, `AVERAGE`, `COUNT`, `DIVIDE`, `IF`, and the `CASE WHEN` conditional-percentage form added during Phase 4). `COUNT(DISTINCT col) ... WHERE col IS NOT NULL` is a known, unfixed gap. More complex DAX patterns (time intelligence, `CALCULATE` with multiple filters, and anything outside the supported patterns) are out of scope, so KPIs the LLM proposes in SQL that fall outside this pattern set either fail translation (caught and surfaced, as with the HR `CAST`/`COUNT(CASE WHEN...)` bug) or are dropped.
+**DAX coverage is the largest limitation.** SQL→DAX translation is intentionally regex-based rather than a real SQL parser, and covers only basic measure expressions (`SUM`, `AVERAGE`, `COUNT`, `DIVIDE`, `IF`, the `CASE WHEN` conditional-percentage form added during Phase 4, single-condition `WHERE` filters including `IS [NOT] NULL`, and bracket-quoted identifiers — the last two closed during flagship hardening). More complex DAX patterns (time intelligence, `CALCULATE` with multiple filters, and anything outside the supported patterns) are out of scope, so KPIs the LLM proposes in SQL that fall outside this pattern set either fail translation (caught and surfaced, as with the HR `CAST`/`COUNT(CASE WHEN...)` bug) or are dropped.
 
 **Visuals are basic by design.** The compiler supports four chart types only (card, bar chart, line chart, table), matched to whichever of these best fits each KPI's SQL intent. There is no support for combo charts, custom visuals, drill-through, or conditional formatting beyond the static per-visual-type templates established during PBIR reverse-engineering.
 
 **Expected behavior, not a bug: "some tables have incomplete or no data" on first open.** Every freshly-compiled or freshly-cloned `.pbip` project shows this banner the first time it's opened in Desktop, simply because `.pbi/cache.abf` doesn't exist yet (correctly, since the compiler should never write it). The fix is clicking **Refresh** once the report opens; the banner won't reappear once Desktop has cached a successful load. This is a genuinely separate situation from the M-escaping partition-load failure documented in `docs/pbir_reference.md` (§2.12), which produces the *same visible banner text*, and is exactly what makes it easy to wrongly write off a real bug as "oh, that's just the first-open thing." If the banner persists after clicking Refresh, rather than resolving on the first refresh, treat that as a real signal something in that table's partition is actually broken, not as more of the expected first-open behavior. See `docs/pbir_reference.md` for the full writeup.
 
 This is unrelated to the "no Power BI Service scheduled refresh" limitation below: that one is about automated refresh on a publishing target that's out of scope for this project; the note above is a one-time manual click inside Desktop itself, on any freshly-generated report, regardless of publishing.
+
+**Report path coupling.** The compiled Power Query M partition embeds the absolute path of the source CSV on the compiling machine (by Power BI's requirement — `File.Contents(...)` does not accept repo-relative paths). A `.pbip` compiled on one machine must be opened on that same machine, or the CSV must be moved to the same absolute path on another machine. When opening for the first time after moving, click **Refresh** once and the report will load — see the first-open banner note above. To compile for a different machine, re-run `run_agent.py` with `--input` pointing at that machine's CSV location.
 
 Other known limitations:
 - **Single-table input only.** No multi-table joins in this MVP; a 2-table join was scoped as a stretch goal and not implemented.
@@ -279,7 +285,7 @@ Other known limitations:
 Stretch goals not pursued in this MVP:
 - Multi-table joins / relational schema support
 - A debugging UI (Streamlit)
-- Broader DAX pattern coverage, closing the `COUNT(DISTINCT)` gap above
+- Broader DAX pattern coverage (the `COUNT(DISTINCT)` null-filter gap above is already closed; multi-condition filters, time intelligence, and wider shape support remain future work)
 - Additional visual types and richer layout logic beyond the current 2–3-page groupings
 
 ---

@@ -1,0 +1,137 @@
+{
+  "source_path": "data/raw/online_retail.csv",
+  "source_table": null,
+  "row_count": 541909,
+  "column_count": 8,
+  "is_single_row": false,
+  "columns": {
+    "InvoiceNo": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 25900,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "536365",
+        "536365",
+        "536365",
+        "536365",
+        "536365"
+      ],
+      "is_all_null": false
+    },
+    "StockCode": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 4070,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "85123A",
+        "71053",
+        "84406B",
+        "84029G",
+        "84029E"
+      ],
+      "is_all_null": false
+    },
+    "Description": {
+      "inferred_dtype": "string",
+      "null_count": 1454,
+      "null_rate": 0.002683,
+      "distinct_count": 4223,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "WHITE HANGING HEART T-LIGHT HOLDER",
+        "WHITE METAL LANTERN",
+        "CREAM CUPID HEARTS COAT HANGER",
+        "KNITTED UNION FLAG HOT WATER BOTTLE",
+        "RED WOOLLY HOTTIE WHITE HEART."
+      ],
+      "is_all_null": false
+    },
+    "Quantity": {
+      "inferred_dtype": "integer",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 722,
+      "min_value": -80995,
+      "max_value": 80995,
+      "sample_values": [
+        6,
+        6,
+        8,
+        6,
+        6
+      ],
+      "is_all_null": false
+    },
+    "InvoiceDate": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 23260,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "2010-12-01 08:26:00",
+        "2010-12-01 08:26:00",
+        "2010-12-01 08:26:00",
+        "2010-12-01 08:26:00",
+        "2010-12-01 08:26:00"
+      ],
+      "is_all_null": false
+    },
+    "UnitPrice": {
+      "inferred_dtype": "float",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 1630,
+      "min_value": -11062.06,
+      "max_value": 38970.0,
+      "sample_values": [
+        2.55,
+        3.39,
+        2.75,
+        3.39,
+        3.39
+      ],
+      "is_all_null": false
+    },
+    "CustomerID": {
+      "inferred_dtype": "float",
+      "null_count": 135080,
+      "null_rate": 0.249267,
+      "distinct_count": 4372,
+      "min_value": 12346.0,
+      "max_value": 18287.0,
+      "sample_values": [
+        17850.0,
+        17850.0,
+        17850.0,
+        17850.0,
+        17850.0
+      ],
+      "is_all_null": false
+    },
+    "Country": {
+      "inferred_dtype": "string",
+      "null_count": 0,
+      "null_rate": 0.0,
+      "distinct_count": 38,
+      "min_value": null,
+      "max_value": null,
+      "sample_values": [
+        "United Kingdom",
+        "United Kingdom",
+        "United Kingdom",
+        "United Kingdom",
+        "United Kingdom"
+      ],
+      "is_all_null": false
+    }
+  }
+}

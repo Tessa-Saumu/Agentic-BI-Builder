@@ -31,7 +31,18 @@ import time
 # isn't set. The .env.example ships GEMINI_MODEL / MISTRAL_MODEL /
 # GEMINI_MODEL_FALLBACK / MISTRAL_MODEL_FALLBACK explicitly, so in normal
 # operation these defaults are rarely what actually gets used.
-_DEFAULT_GEMINI_MODEL = "gemini-3.1-flash"
+#
+# Canonical IDs (reconciled 2026-10-07 during flagship hardening so
+# llm_client.py, .env.example, and the README tech-stack table agree
+# byte-for-byte; historically the three places disagreed on the Gemini
+# primary). The Gemini primary matches .env.example's long-standing value;
+# per Google's model-lifecycle docs gemini-3.5-flash is GA with retirement
+# no earlier than May 2027, while the 2.x Flash IDs are retiring
+# 2026-10-20 -- hence 3.5-flash, not a 2.x ID, is canonical. Live API
+# verification of these IDs was not performed in this environment (no keys
+# available); if a future run reports an unknown-model error, update all
+# three places together.
+_DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 _DEFAULT_GEMINI_MODEL_FALLBACK = "gemini-3.1-pro"
 _DEFAULT_MISTRAL_MODEL = "mistral-large-latest"
 _DEFAULT_MISTRAL_MODEL_FALLBACK = "mistral-medium-latest"
@@ -171,6 +182,8 @@ def call_gemini(system_prompt: str, user_content: str, response_model: type):
                 "system_instruction": system_prompt,
                 "response_mime_type": "application/json",
                 "response_schema": response_model,
+                # temperature=0 for cross-provider determinism; matches Mistral path
+                "temperature": 0,
             },
         )
         parsed = getattr(response, "parsed", None)
