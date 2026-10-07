@@ -24,6 +24,7 @@ Thumbs.db
 # Output reports (large binary-ish folders — exclude from git)
 output/*/
 !output/.gitkeep
+run_summary.json
 
 # Data (comment out if you want to push sample CSVs)
 data/profiles/

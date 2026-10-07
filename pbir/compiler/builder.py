@@ -54,6 +54,7 @@ from pbir.compiler.sql_to_dax import (
 from pbir.compiler.layout import group_into_pages, layout_page
 
 __all__ = [
+    "MIN_VISUALS_REQUIRED",
     "SQLToDaxError",
     "DaxTranslation",
     "translate",
@@ -63,6 +64,18 @@ __all__ = [
     "layout_page",
     "run_pbir_compiler",
 ]
+
+# ACCEPTANCE THRESHOLD (2026-07-12): per the project's own acceptance
+# criteria ("at least two pages and at least four visuals"), a build
+# producing fewer than MIN_VISUALS_REQUIRED translatable KPIs does not
+# satisfy the deliverable, even though each individual KPI failure was
+# already handled gracefully (dropped, not hard-failed). This is a
+# deliberate, mentor-agreed design: untranslatable SQL for ANY individual
+# KPI is fine and expected -- it's dropped, not fatal -- but if too FEW
+# KPIs survive translation overall, the resulting report would not meet
+# the project's own bar for a working dashboard, so the whole build is
+# rejected rather than silently shipping a thin report.
+MIN_VISUALS_REQUIRED = 4
 
 
 def _build_columns(profile: DataProfile) -> list[Column]:
@@ -296,18 +309,6 @@ def run_pbir_compiler(state: AgentState) -> AgentState:
         all_measures.extend(measures)
 
     visuals = _build_visuals(state.kpi_specs, measures_by_kpi, group_col_by_kpi, table_name)
-
-    # ACCEPTANCE THRESHOLD (2026-07-12): per the project's own acceptance
-    # criteria ("at least two pages and at least four visuals"), a build
-    # producing fewer than MIN_VISUALS_REQUIRED translatable KPIs does not
-    # satisfy the deliverable, even though each individual KPI failure was
-    # already handled gracefully above (dropped, not hard-failed). This is
-    # a deliberate, mentor-agreed design: untranslatable SQL for ANY
-    # individual KPI is fine and expected -- it's dropped, not fatal -- but
-    # if too FEW KPIs survive translation overall, the resulting report
-    # would not meet the project's own bar for a working dashboard, so the
-    # whole build is rejected rather than silently shipping a thin report.
-    MIN_VISUALS_REQUIRED = 4
 
     if len(visuals) < MIN_VISUALS_REQUIRED:
         state.errors.append(
