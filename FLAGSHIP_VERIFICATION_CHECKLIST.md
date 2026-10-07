@@ -257,7 +257,7 @@ drift fails a test rather than the diagram. Verified by reading `graph.py` today
   dependency docs 2026-10-07); `requirements-demo.txt` is for local runs.
 - **Closure path (owner, ~10 min):** share.streamlit.io → New app → repo
   `Tessa-Saumu/Agentic-BI-Builder`, branch `main`, main file `app.py`, no
-  secrets. Then (a) paste the URL into the README "Public URL" line and this
+  secrets (the implementation is proposed for merge in PR #43). Then (a) paste the URL into the README "Public URL" line and this
   checklist, (b) set it as the repo Website (item 20). If Cloud refuses the
   46 MB Online Retail CSV at free-tier memory limits, drop that dataset from
   `demo_core.DATASETS` (one-line removal, the other two still demonstrate the
@@ -277,6 +277,10 @@ drift fails a test rather than the diagram. Verified by reading `graph.py` today
 - **Note:** this was performed through the GitHub UI in the original plan; it
   remains an owner-side action here. The audit's suggested description text is
   already covered by the existing description, so no change is required there.
+  Attempted via the authenticated `gh` session on owner approval (2026-10-07):
+  `PUT /repos/.../topics` → HTTP 403 "Resource not accessible by integration" —
+  the session token has no repository-administration write scope, so topics can
+  only be set in the UI.
 - **Date:** 2026-10-07.
 
 ### 21. Empty notebooks removed or filled; dead scaffolding cleaned
@@ -398,9 +402,9 @@ framing. Verified by grep 2026-10-07.
 | G13 | "What I built / Credits" | ✅ with API-verified commit/PR facts; counts updated to today's (123/132, 6 mentor merges) |
 | G14 | "Design Decisions" | ✅ six bullets, all cross-checked against code and tests |
 | G19 | Repo metadata | ❌ owner action (item 20); suggested topics/closure steps recorded |
-| G25 | Narrated 2–3 min demo video | ❌ deferred — requires a human screen recording; storyboard below so it is a ~10-minute task, not a project |
+| G25 | Narrated 2–3 min demo video | Closed as **deferred with reason (permanent)** by owner decision 2026-10-07: a screen recording cannot be produced from this environment and the DoD's "demo GIF or a linked video" clause is satisfied by `assets/demo.gif`; storyboard retained below for an optional future recording |
 
-### G25 recording storyboard (deferred, ready to execute)
+### G25 recording storyboard (optional; DoD already satisfied by the demo GIF)
 
 1. `git clone … && pip install -r requirements.txt && pytest` → show the green
    count (0:00–0:30).
