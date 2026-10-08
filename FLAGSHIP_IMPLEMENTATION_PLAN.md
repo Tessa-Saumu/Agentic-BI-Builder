@@ -489,14 +489,19 @@ Make the repository recruiter-ready as a portfolio piece: clear contribution bou
 - A filled verification checklist proving every DoD item.
 
 ### Acceptance criteria
-- [ ] README has no placeholder URLs, no broken internal links, and the CI badge is green.
-- [ ] "What I built / Credits" section appears, names the two mentor commits by SHA and what they changed.
-- [ ] "Design Decisions" section appears and covers the six bullets listed above.
-- [ ] Up-front scope paragraph states single-table/CLI/Desktop-only before the fold.
-- [ ] Public demo URL is reachable without API keys; demonstrates profiling → KPI execution → `.pbip` download for at least Chinook.
-- [ ] Repository description, topics, and website link are set on GitHub.
-- [ ] Every item in the Flagship Definition of Done (from `FLAGSHIP_GAP_AUDIT.md`) is checked off in `FLAGSHIP_VERIFICATION_CHECKLIST.md` or explicitly marked deferred with reason.
-- [ ] No "Explicitly Out of Scope" item has been implemented (grep for Dockerfile, FastAPI, `sqlglot`, multi-table code paths, vector-store imports).
+
+Legend: `[x]` fully met · `[~]` met in-repo, remaining step blocked on an
+external/owner action and recorded in `FLAGSHIP_VERIFICATION_CHECKLIST.md` ·
+`[ ]` not met.
+
+- [~] README has no placeholder URLs, no broken internal links, and the CI badge is green. — URLs fixed (grep `your-username` → 0), all internal links + anchors audited → 0 broken. CI badge deliberately **not** added: GitHub Actions has never executed for this repo (every recorded run, including this phase's own push, is a `startup_failure` pseudo-run), and this plan conditions the badge on a green CI. Owner enablement path recorded in the checklist (Reproducibility item 3).
+- [x] "What I built / Credits" section appears, names the two mentor commits by SHA and what they changed. — plus API-verified corrections to this plan's draft numbers (see Deviations).
+- [x] "Design Decisions" section appears and covers the six bullets listed above.
+- [x] Up-front scope paragraph states single-table/CLI/Desktop-only before the fold. — plus an "At a glance" box.
+- [~] Public demo URL is reachable without API keys; demonstrates profiling → KPI execution → `.pbip` download for at least Chinook. — the demo itself is built, tested (19 tests), and run live for all three datasets with a downloadable `.pbip` zip; deployment to Streamlit Community Cloud is an owner account action (checklist Portfolio item 19).
+- [ ] Repository description, topics, and website link are set on GitHub. — owner action; description already present, topics/website still empty (checklist Portfolio item 20).
+- [x] Every item in the Flagship Definition of Done (from `FLAGSHIP_GAP_AUDIT.md`) is checked off in `FLAGSHIP_VERIFICATION_CHECKLIST.md` or explicitly marked deferred with reason. — 32/32 items carry a status, method, evidence and date; 29 verified, 3 deferred with closure paths.
+- [x] No "Explicitly Out of Scope" item has been implemented (grep for Dockerfile, FastAPI, `sqlglot`, multi-table code paths, vector-store imports).
 
 ### Rollback / risk considerations
 - **Streamlit Cloud memory limits:** Online Retail is 48 MB; if it crashes the free tier, drop it from the demo (keep Chinook + HR) rather than optimizing data loading. The demo is proof-of-concept, not a scale demo.
@@ -650,3 +655,59 @@ Stop investing engineering time on flagship consolidation when any of the follow
 - **README Tech Stack row vs. retired-era IDs in git history:** older commits/docs may still reference `open-mixtral-8x7b`; only the live README row was reconciled (Phase 5 owns the remaining README polish).
 - **`.venv/` created in repo root for verification runs:** gitignored (`venv/`/`.venv/` patterns) and not committed; safe to delete. Left in place for the next phase's test runs.
 
+
+## Execution Log — Phase 5
+
+### Pre-Change Inspection (assumptions checked before editing)
+- **Phases 1–4 state confirmed in-repo:** `.github/workflows/tests.yml`, `tests/test_graph.py`, `tests/test_end_to_end.py`, `evidence/v1/` (15 JSONs + README + metadata), translator hardening, notebook/scaffolding cleanup, LICENSE, pins — all present; baseline suite `245 passed` on a fresh venv before any Phase 5 edit.
+- **`PROJECT_EVIDENCE.md` does not exist in this repository** (nor do `PROJECT_EVIDENCE_AGENTICBI.md` / `PROJECT_PORTFOLIO_AUDIT.md`, which `FLAGSHIP_GAP_AUDIT.md` names as its inputs). They were external inputs to the audit, never committed. Every audit claim that this phase relied on was therefore re-verified against primary sources instead of the missing evidence doc (see below).
+- **GitHub facts re-verified via API (2026-10-07), because this plan's G13 draft text had gone stale:** commits on `main` = 132 (Tessa-Saumu 123, Mikehade 9 — the plan said 117/126); Mikehade's merges are PRs **#8–#13** (6 merges) plus one merge-main-into-branch; PR **#14 and the `v1.0.0` release were merged/published by `Tessa-Saumu`**, not the mentor (plan said "7 PR merges, release tagging"); `cca0106`'s diff confirms exactly the three changes credited (KPI-name uniqueness in `DomainKPIResponse`, reflector unknown-note filtering + duplicate-name rejection, `reviewed_kpi_count` logging fix) with tests; `55578ac` is the scaffold commit.
+- **CI assumption invalidated:** the `Tests` workflow is registered and active but has **never executed** — `actions/workflows/377744326/runs` → `total_count: 0`; all 8 recorded runs are `startup_failure` "BuildFailed" pseudo-runs, including this session's own push to `arena/6869ede2-agentic-bi-builder` (run 37699981623, 2026-10-07T23:03Z). The plan's "badge once CI is green" therefore cannot be satisfied by code.
+- **Streamlit Community Cloud dependency assumption checked against Streamlit docs:** Cloud installs the root `requirements.txt` (or the entrypoint directory's) and provides `streamlit` in its base environment, so `app.py` runs on Cloud without adding streamlit to `requirements.txt`; a custom `requirements-demo.txt` is *not* read by Cloud (recorded in that file's header comment).
+- **README defects beyond the G12 list confirmed:** Quickstart/Setup pointed at `output/chinook_report/report.pbip`, a file the compiler never writes (real name: `chinook.pbip`, from `_derive_report_name`); 9 of 14 dataset screenshots were unreferenced by README; footer "June/July 2026" understated by one month (v1.0.0 = 2026-08-30).
+
+### Completed Tasks
+- **G12 (README link/structural fixes):** real clone URL in Quickstart + Setup; `docs/pbir reference.md` → `docs/pbir_reference.md` (`git mv`, README already linked the underscored name; STRUCTURE.md updated); fresh-clone note with exact expected counts; "What you will see" console sample (byte-accurate to `run_agent.py`'s print formatting); correct `.pbip` filename in Quickstart/Setup; up-front scope sentence + "At a glance" limitations box (G12-adjacent DoD claims-discipline items); alt-texted gallery for all 14 dataset screenshots; result-table provenance paragraph (closes the DoD Evidence row "tables cite the bundle / label historical", which no earlier phase's acceptance criteria covered); reference_report labelling paragraph; footer date corrected. **CI badge withheld** (see Deviations).
+- **G13 (Credits):** new "What I built / Credits" section with the API-verified commit/PR facts, honest scope statement, and links to issues #1–#7 / PRs #8–#14.
+- **G14 (Design Decisions):** new section with the six rationale bullets; the "five (now seven) shapes" phrasing replaced by the enumerated, code-checked shape families and DAX primitives.
+- **G11 (zero-key demo):** `demo_core.py` (headless pipeline: profiler → committed KPI fixtures → executor → compiler → `write_pbip` → zip; view helpers; dataset registry with provenance notes), `app.py` (Streamlit UI: dataset selector, run button, metrics, console capture, profiler null-rate table, per-KPI SQL + result previews, `.pbip` zip download with absolute-path/Windows warning, TMDL + file-inventory expanders, Desktop screenshots, architecture diagram), `requirements-demo.txt`, `.streamlit/config.toml`. Never imports `agent.llm_client` / `domain_kpi` / `reflector` / `graph` / `run_agent`.
+- **G11 tests:** `tests/test_demo_app.py` — 19 tests: registry integrity, per-dataset compile (`.pbip` + zip + 5 measure blocks + absolute M path), fail-soft on missing input, temp-dir workdir, **subprocess proof that no LLM module is imported**, view-helper ordering/capping, and 3 Streamlit `AppTest` UI tests (skipped with a printed reason where streamlit is absent, i.e. in CI).
+- **G19 (repo metadata):** in-repo prerequisites done (demo + README links for the Website field); the settings themselves are owner actions — recorded with exact values/steps in `FLAGSHIP_VERIFICATION_CHECKLIST.md` (Portfolio item 20). Attempted via the authenticated `gh` session after owner approval of "topics only, keep private": `PUT /repos/.../topics` → HTTP 403 (token lacks repository-administration write), so topics remain an owner-UI step; recorded honestly rather than reported as done.
+- **G25 (video):** closed as permanently deferred with reason by owner decision 2026-10-07 — a screen recording cannot be produced from this environment and the DoD's "demo GIF or a linked video" clause is satisfied by `assets/demo.gif`; a ready-to-run 5-scene storyboard is retained in the checklist for an optional future recording.
+- **Final verification pass:** `FLAGSHIP_VERIFICATION_CHECKLIST.md` added — all 32 DoD items with status, verification method, evidence, and date; 29 verified, 3 blocked-on-owner with closure paths; re-run commands included.
+- **Repo-wide re-verification performed today:** full suite in two environments; drivers; exit codes; link/anchor audit; claim greps; out-of-scope greps; V2 issue state; live `streamlit run app.py`.
+
+### Files Changed
+- `README.md` (modified — scope box, At-a-glance, Design Decisions, Credits, provenance paragraph, demo section, screenshot gallery, quickstart/setup fixes, structure block, footer)
+- `docs/pbir reference.md` → `docs/pbir_reference.md` (renamed)
+- `app.py` (new), `demo_core.py` (new), `requirements-demo.txt` (new), `.streamlit/config.toml` (new)
+- `tests/test_demo_app.py` (new — 19 tests)
+- `STRUCTURE.md` (modified — Phase 5 files, docs rename, checklist/flagship docs)
+- `FLAGSHIP_VERIFICATION_CHECKLIST.md` (new — 32-item DoD verification)
+- `FLAGSHIP_IMPLEMENTATION_PLAN.md` (modified — Phase 5 boxes, this log)
+
+### Test & Verification Results
+- **Fresh venv, `requirements.txt` only (CI-equivalent):** `261 passed, 3 skipped in 9.39s`, 0 errors/failures; skips are the 3 Streamlit UI tests, reason printed (`streamlit is a demo-only dependency (requirements-demo.txt), not installed by requirements.txt / CI`).
+- **Demo env (`requirements.txt` + `streamlit`):** `264 passed in 11.13s`; slowest test 3.82s (`online_retail` e2e), second 3.69s (demo `online_retail`) — inside the Phase 2 ≤5s/test budget.
+- **`tests/test_demo_app.py` in isolation:** 19 passed; under a simulated "streamlit missing" interpreter: `16 passed, 3 skipped` (same printed reason) — no hidden failures in either environment.
+- **Streamlit UI exercised headlessly** (`streamlit.testing.v1.AppTest`) for all three datasets: no exceptions; Chinook 412 rows/2 pages/5 visuals, HR 1,470 rows/3 pages/5 visuals, Online Retail 541,909 rows/2 pages/5 visuals; download button present each time; path-coupling warning present.
+- **Live server:** `streamlit run app.py` on `0.0.0.0:8501` → `/_stcore/health` 200, index 200 with no `X-Frame-Options` header (proxy/iframe-friendly).
+- **Drivers (key-free):** `scripts/profile_datasets.py` → 3 profiles; `scripts/run_pbir_compiler_all` → hr + online_retail built, chinook announced-SKIPPED by default and built with `--chinook` (2/5/5); key-requiring drivers unchanged (no keys in env — stated, not simulated).
+- **CLI contract:** `run_agent.py --input nonexistent.csv` → errors printed, `run_summary.json` written (`report_written: false`, 5 errors), **exit 1**; success path exit 0 covered by `tests/test_end_to_end.py`.
+- **Audits:** markdown link/anchor audit over README + STRUCTURE + evidence/notebooks/`pbir_reference` docs → **0 broken**; grep `your-username` → 0; single `24/24` occurrence denominator-qualified; grep `reliab` in README → 0; model IDs byte-identical across `.env.example`/`llm_client.py`/README; out-of-scope greps (Dockerfile/FastAPI/sqlglot/vector stores/langchain imports) clean; 25 open issues all `V2:`-prefixed.
+- **CI:** push of this phase's commit to `arena/6869ede2-agentic-bi-builder` produced run 37699981623 → `startup_failure` (BuildFailed), the 9th such pseudo-run and 0th real `Tests` run. Recorded as blocked, not as a pass. Phase 5 is proposed for merge in **PR #43** (opened 2026-10-07).
+- **Lint/type/build:** none exist in this repo (no pyproject/setup.cfg/ruff/mypy; CI runs pytest only) — unchanged, nothing new added, per the minimum-scope constraint.
+
+### Deviations from Plan
+1. **CI badge withheld (G12):** the plan says add it "once CI is green"; CI cannot run (owner-side Actions enablement), so adding a grey/failing badge would recreate the credibility defect. README instead documents how to get green CI in the checklist.
+2. **Demo split into `demo_core.py` + `app.py`:** the plan listed only `app.py`; putting the pipeline logic in an importable, Streamlit-free module is what lets CI test the demo without adding streamlit to `requirements.txt` (and mechanically proves the zero-key property). `requirements-demo.txt` kept exactly as planned.
+3. **Credits numbers corrected against the GitHub API (G13):** 123/132 commits (not 117/126); mentor merges are #8–#13 (6), while PR #14 and the `v1.0.0` tag are the author's — the plan's draft ("7 PR merges, release tagging") would have miscredited. Mentor's two direct commits and their contents verified from the commit diffs.
+4. **Scope of README edits slightly wider than the G12 bullet list:** fixed the non-existent `report.pbip` filename in Quickstart/Setup, added the alt-texted screenshot gallery and the result-table provenance paragraph, and corrected the footer date. Each closes a named row of the DoD ("quickstart that actually produces a green test run", "screenshots … with alt text", "tables cite the bundle", audit's README-defect list); none changes a number or a claim.
+5. **`requirements-demo.txt` documents that Community Cloud ignores it:** rather than adding streamlit to the main `requirements.txt` (which would slow every fresh clone and CI job), the file explains that Cloud's base image already provides streamlit while installing root `requirements.txt`. Deployment therefore needs no dependency-file change.
+6. **G19 and G25 not executed here:** repo settings and a screen recording are account/human actions; both are recorded with exact values/steps in the checklist instead of being silently dropped or faked.
+
+### Newly Discovered Problems (Backlog — Not Modified in Phase 5)
+- **GitHub Actions has never executed for this repository** (9/9 recorded runs are `startup_failure` "BuildFailed" pseudo-runs; `Tests` workflow run count 0), consistent with Actions being disabled/unbillable for a private repo. Blocks DoD Reproducibility #3 (badge, CI-enforced exit codes) and the G12 badge. Owner action: enable Actions/billing, then push. **Not fixable from code; not attempted via repo settings without owner sign-off.**
+- **Cosmetic visual-title duplication in compiled reports:** Desktop screenshots show titles such as "Attrition Rate by Department by Department" and "Average Job Satisfaction by Job Role by JobRole" (`assets/hr_analytics/mistral_page2_*.png`) — the grouped-visual title derivation appends the group-column phrase even when the KPI name already ends with it (`pbir/compiler/builder.py` title/dedupe logic). Cosmetic only; fixing it would change compiled output and invalidate the committed screenshots, so it is recorded here rather than fixed under a packaging phase.
+- **Streamlit Community Cloud free-tier memory vs. the 46 MB Online Retail CSV is untested** (peak RSS of a local Online Retail demo run: ~336 MB). If Cloud rejects it, drop `online_retail` from `demo_core.DATASETS` and say so in the README demo section (steps in checklist Portfolio item 19).
+- **Carried from Phases 3–4:** `tests/fixtures/kpis/hr_analytics_kpis.json` provenance (reconstructed, not verbatim from git history — now labelled in `demo_core.DATASETS`); `gemini-3.1-pro` fallback ID unverified against the live API; retired-era model IDs in git history.

@@ -1,0 +1,17 @@
+# Demo-only dependencies for app.py — the public, zero-API-key Streamlit demo.
+#
+#   pip install -r requirements-demo.txt
+#   streamlit run app.py
+#
+# Deployment note: Streamlit Community Cloud installs the dependency file named
+# `requirements.txt` (repo root, or the app entrypoint's directory) and already
+# provides `streamlit` in its base environment, so this file is not read by
+# Community Cloud. It exists so a local demo run installs the same stack, with
+# the Streamlit version the demo was tested against pinned here rather than in
+# the agent's own requirements.txt (the pipeline and its tests never import
+# streamlit).
+
+-r requirements.txt
+
+# Tested with streamlit 1.65.0 on Python 3.11
+streamlit~=1.65

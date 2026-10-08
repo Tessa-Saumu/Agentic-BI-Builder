@@ -1,0 +1,18 @@
+# Streamlit configuration for the deterministic demo (app.py).
+#
+# Community Cloud reads this file from `.streamlit/config.toml` at the repo
+# root; the same settings keep a local `streamlit run app.py` quiet (no browser
+# auto-launch, no usage telemetry) and make the app behave behind a reverse
+# proxy.
+
+[server]
+headless = true
+# No source-reload watching: the demo recompiles on button press, and the
+# watcher adds noise (and inotify load) in container hosts.
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
