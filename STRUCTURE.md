@@ -116,9 +116,6 @@ agentic-bi-builder/
 ├── LICENSE                     # MIT
 ├── README.md
 ├── STRUCTURE.md
-├── FLAGSHIP_GAP_AUDIT.md              # gap audit (G1–G25) + Definition of Done
-├── FLAGSHIP_IMPLEMENTATION_PLAN.md    # phased plan + execution log
-└── FLAGSHIP_VERIFICATION_CHECKLIST.md # DoD verification, item by item
 ```
 
 Generated artifacts (`output/<dataset>_report/`, `data/profiles/`, caches, and

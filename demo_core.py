@@ -21,8 +21,7 @@ It is deliberately split out of `app.py` so that:
    a provider round-trip.
 
 KPI fixtures are the ones already committed for the no-network end-to-end
-regression tests (`tests/fixtures/kpis/<dataset>_kpis.json`) — real LLM
-output from a recorded run, per `evidence/v1/README.md`. The demo re-executes
+regression tests (`tests/fixtures/kpis/<dataset>_kpis.json`) — historical AI output or a labeled reconstruction, per `evidence/v1/README.md`. The demo re-executes
 their SQL and recompiles the report; it does not re-generate them.
 
 Nothing here mutates repository state: `.pbip` folders and their zips are
@@ -107,8 +106,8 @@ class DemoRun:
 # ---------------------------------------------------------------------------
 
 _MISTRAL_PROVENANCE = (
-    "KPI specs are the committed fixture recovered from the recorded Mistral "
-    "run (see evidence/v1/README.md); the demo re-executes and recompiles them."
+    "KPI specs are a committed historical fixture recovered from a development "
+    "run; the provider/model were not recorded (see evidence/v1/README.md). The demo re-executes and recompiles them."
 )
 
 DATASETS: dict[str, DemoDataset] = {
@@ -139,9 +138,9 @@ DATASETS: dict[str, DemoDataset] = {
         kpi_fixture_path=REPO_ROOT / "tests" / "fixtures" / "kpis" / "hr_analytics_kpis.json",
         screenshot_dir=REPO_ROOT / "assets" / "hr_analytics",
         fixture_provenance=(
-            "KPI specs match the README's recorded Mistral HR confirmation-run "
-            "table; see the provenance caveat in FLAGSHIP_IMPLEMENTATION_PLAN.md "
-            "(Phase 3–4 backlog)."
+            "KPI specs were reconstructed to match the recorded HR confirmation-run "
+            "table; these are not retained provider output. See the provenance explanation in evidence/v1/README.md "
+            "and the README."
         ),
     ),
 }
