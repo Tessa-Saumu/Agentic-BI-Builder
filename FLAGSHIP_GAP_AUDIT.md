@@ -1,5 +1,7 @@
 # Flagship Gap Audit — Agentic BI Builder
 
+> **Current reconciliation — 2026-10-13:** prior Phases 1–5 are merged through `257d7e6`; original gap findings below are historical. Offline engineering checks pass. The repository is still private with no public demo URL, so recruiter access remains an explicit packaging gate. See the appended verification; no live provider/Desktop result is claimed.
+
 **Target role:** Junior / early-career Applied AI Engineer, ML Engineer, AI Engineer
 **Audit date:** 2026-10-07
 **Source:** Working branch `arena/5d602964-agentic-bi-builder`, based on commit `764883a` of `main` (`v1.0.0` tag)
@@ -200,3 +202,11 @@ The project is ready to be presented as a **public flagship** when every item be
 - [ ] The project does not claim to be an "end-to-end BI platform," "autonomous data analyst," or "production-grade agent"; it is a bounded v1 LangGraph workflow that compiles validated KPIs into an openable Power BI Project folder.
 
 When every checkbox above is met, the project is ready to be made public (or the public demo layer is ready even if the full source repo stays private) and can be presented as a flagship Applied AI / AI Engineer portfolio piece. The expected result: a technical reviewer can clone (or view the public demo), run tests, read the evidence, and in under ten minutes understand what problem was solved, what was personally built, why the choices were made, how it was evaluated, what worked, what failed, and what the hard limits are.
+
+
+
+## Current reconciliation and remaining implementation — 2026-10-13
+
+Phases 1–5 are merged through `257d7e6` (repair commits `6accfa3`, `dce73c3`, `9b90814`, PRs #41–#43); no open PRs remain. Fresh isolated Windows CPython 3.12.0: **261 passed, 3 explicit Streamlit UI skips** with base requirements; **264 passed, 0 skipped** after demo requirements. No live provider calls or Desktop opens were performed. README now distinguishes reconstructed HR fixtures from retained provider output, and rerunnable workflows from reproducible historical timing/provider tables.
+
+Detailed evidence and safe claims are in [the current verification checklist](FLAGSHIP_VERIFICATION_CHECKLIST.md#current-verification-and-bounded-next-steps--2026-10-13). Stop further engineering phases. Complete existing public-access gate G11 / checklist item 19: repo remains **private**, homepage empty; publish a permitted demo/static evidence surface or explicitly choose public source access, then verify anonymous access. Resolve Actions startup failures and obtain one actual passing job before adding a CI badge; metadata follows the chosen access surface. No production/general-KPI-quality/fresh-Desktop claims are supported. No account/visibility changes or publication performed in this review.

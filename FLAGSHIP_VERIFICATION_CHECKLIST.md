@@ -1,5 +1,7 @@
 # Flagship Verification Checklist — Agentic BI Builder
 
+> **Current reconciliation — 2026-10-13:** prior Phases 1–5 are merged through `257d7e6`; original gap findings below are historical. Offline engineering checks pass. The repository is still private with no public demo URL, so recruiter access remains an explicit packaging gate. See the appended verification; no live provider/Desktop result is claimed.
+
 **Purpose:** line-by-line verification of the Flagship Definition of Done from
 `FLAGSHIP_GAP_AUDIT.md` (§ "Flagship Definition of Done"), executed as the final
 task of Phase 5 in `FLAGSHIP_IMPLEMENTATION_PLAN.md`.
@@ -442,3 +444,22 @@ problem/approach/contributions/limits in <10 min — ✅; (e) clone → pytest g
 provenance — ✅. Two owner actions (enable Actions; deploy demo + repo
 settings) plus one human recording (G25) remain; everything else in the DoD is
 verified above.
+
+
+## Current verification and bounded next steps — 2026-10-13
+
+Reviewed main `257d7e6080bfe60bb19a10e7fb089251a1cf5099`; no open PRs. Prior repair commits `6accfa3` (fixtures, fresh-clone runtime, deterministic E2E and CLI contracts), `dce73c3` (evidence, graph verification and translator fail-closed/null-filter support), `9b90814` (zero-key demo and packaging), and merged PRs #41–#43 already complete the in-repository phases. They establish prior repository work; AI authorship is not independently established.
+
+- Windows CPython **3.12.0**, fresh isolated `requirements.txt` install: **261 passed, 3 explicitly skipped** Streamlit UI tests, 0 errors/failures (64.81s).
+- Added `requirements-demo.txt`: **264 passed, 0 skipped** (52.13s), including deterministic compile/zip for all three fixtures, graph and CLI failure/success contracts, and headless Streamlit UI checks. No API keys or live LLM calls used.
+- README repairs: HR fixture is reconstructed to match documented KPIs, rather than retained provider output; historical provider tables/timings cannot be guaranteed reproduced by rerunning the stochastic workflow. No historical evidence was fabricated or relabeled as a fresh provider run.
+- GitHub metadata today: **private**, empty homepage; latest Actions record `37769969008` is `startup_failure`. A public hosted preview, public source/evidence surface, and green CI remain unverified. No visibility, account settings, deployment, pushes or merges were performed.
+
+### Updated implementation order
+
+1. Freeze feature scope: all prior in-repository consolidation phases are complete and freshly verified offline. Do not start V2, another evaluation phase, or broad dependency/lint expansion for recruiter packaging.
+2. Finish the existing public-access gate (G11 deployment / checklist item 19): owner chooses public repository access or a public permitted demo/evidence surface; verify the chosen URL without a signed-in account. The current private repo and local demo are **not** recruiter-accessible. Static evidence can satisfy the access gate if hosting would add unnecessary work.
+3. Resolve GitHub Actions/account enablement and obtain one actual executed passing job; add a badge only after that. Repository metadata settings can follow the chosen access surface.
+4. Keep live-provider-to-Desktop output explicitly historical/unverified in this run. New provider benchmarks, timing comparisons, and semantic quality claims require retained raw logs and a measured protocol; they are not prerequisites for presenting the verified deterministic compiler case study.
+
+Safe claim: implemented a mentored bounded LangGraph workflow with typed provider output, real SQLite execution, one retry, and deterministic PBIR/TMDL compilation; an offline demo and 264 existing tests are freshly verified on Windows. Do not claim production deployment, general KPI correctness, 100% reflector reliability, fresh Desktop loading, or an available public demo.

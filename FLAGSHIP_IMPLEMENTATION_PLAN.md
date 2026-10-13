@@ -1,5 +1,7 @@
 # Flagship Implementation Plan — Agentic BI Builder
 
+> **Current reconciliation — 2026-10-13:** prior Phases 1–5 are merged through `257d7e6`; original gap findings below are historical. Offline engineering checks pass. The repository is still private with no public demo URL, so recruiter access remains an explicit packaging gate. See the appended verification; no live provider/Desktop result is claimed.
+
 **Source audit:** `FLAGSHIP_GAP_AUDIT.md` (2026-10-07)
 **Starting revision:** commit `764883a` (`v1.0.0`), working branch `arena/5d602964-agentic-bi-builder`
 **Goal:** Minimum engineering to satisfy the Flagship Definition of Done, preserving existing working functionality and existing verified results.
@@ -711,3 +713,11 @@ Stop investing engineering time on flagship consolidation when any of the follow
 - **Cosmetic visual-title duplication in compiled reports:** Desktop screenshots show titles such as "Attrition Rate by Department by Department" and "Average Job Satisfaction by Job Role by JobRole" (`assets/hr_analytics/mistral_page2_*.png`) — the grouped-visual title derivation appends the group-column phrase even when the KPI name already ends with it (`pbir/compiler/builder.py` title/dedupe logic). Cosmetic only; fixing it would change compiled output and invalidate the committed screenshots, so it is recorded here rather than fixed under a packaging phase.
 - **Streamlit Community Cloud free-tier memory vs. the 46 MB Online Retail CSV is untested** (peak RSS of a local Online Retail demo run: ~336 MB). If Cloud rejects it, drop `online_retail` from `demo_core.DATASETS` and say so in the README demo section (steps in checklist Portfolio item 19).
 - **Carried from Phases 3–4:** `tests/fixtures/kpis/hr_analytics_kpis.json` provenance (reconstructed, not verbatim from git history — now labelled in `demo_core.DATASETS`); `gemini-3.1-pro` fallback ID unverified against the live API; retired-era model IDs in git history.
+
+
+
+## Current reconciliation and remaining implementation — 2026-10-13
+
+Phases 1–5 are merged through `257d7e6` (repair commits `6accfa3`, `dce73c3`, `9b90814`, PRs #41–#43); no open PRs remain. Fresh isolated Windows CPython 3.12.0: **261 passed, 3 explicit Streamlit UI skips** with base requirements; **264 passed, 0 skipped** after demo requirements. No live provider calls or Desktop opens were performed. README now distinguishes reconstructed HR fixtures from retained provider output, and rerunnable workflows from reproducible historical timing/provider tables.
+
+Detailed evidence and safe claims are in [the current verification checklist](FLAGSHIP_VERIFICATION_CHECKLIST.md#current-verification-and-bounded-next-steps--2026-10-13). Stop further engineering phases. Complete existing public-access gate G11 / checklist item 19: repo remains **private**, homepage empty; publish a permitted demo/static evidence surface or explicitly choose public source access, then verify anonymous access. Resolve Actions startup failures and obtain one actual passing job before adding a CI badge; metadata follows the chosen access surface. No production/general-KPI-quality/fresh-Desktop claims are supported. No account/visibility changes or publication performed in this review.
