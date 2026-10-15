@@ -41,25 +41,25 @@ flowchart LR
 
 In Python, the profiler identifies columns and types. The AI proposes key performance indicators (KPIs) with SQL queries. SQLite executes them; the review step can request one repair before supported calculations are compiled into Power BI report and data-model files. A rejected build exits with an explicit status and records its summary.
 
-In the browser, I inspect the CSV, choose or request a restricted metric plan, validate it, calculate from the actual rows and export a new project. Online failure remains an error; offline simulation is an explicit mode.
+In the browser, the workflow inspects the CSV, infers or requests a restricted metric plan from its columns, validate it, calculate from the actual rows and export a new project. Online failure remains an error; offline simulation is an explicit mode.
 
 ## ML / AI methodology
 
 This is applied AI orchestration, not a trained predictive model. Gemini or Mistral proposes metrics in the Python path; Gemini provides the browser's online plan. Deterministic schemas and calculation checks constrain accepted output. The offline planner and stored specifications offer repeatable engineering comparisons, not a measured benchmark of AI quality.
 
-Python proposals use column metadata; the reviewer also receives sampled query results. Browser planning sends the goal and disclosed column metadata, never CSV rows. Provider calls in automated tests are mocked. No labeled metric-quality benchmark, general hallucination rate, time-saving study or verified successful visitor-key run is claimed.
+Python proposals use column metadata; the reviewer also receives sampled query results. Browser planning sends the disclosed column metadata, never CSV rows. Provider calls in automated tests are mocked. No labeled metric-quality benchmark, general hallucination rate, time-saving study or verified successful visitor-key run is claimed.
 
 ## Engineering
 
 LangGraph connects the Python steps and enforces the repair budget. Pydantic validates their typed contracts. SQLite executes real queries; the compiler generates supported report structures, DAX measures (Power BI calculations) and TMDL files (the text definition of its data model). Automated tests exercise workflow routing, accepted and rejected builds, calculations, report structure and command exit behavior.
 
-The browser is static HTML/JavaScript, with CSV parsing, plan validation, calculations and ZIP export. Its key is sent directly to Google, is never persisted and is cleared after a run. No app-owned backend or shared provider key is required. A Python CI workflow exists; account billing limits remain unchanged, and this release does not claim a green remote run.
+The browser is static HTML/JavaScript, with CSV parsing, plan validation, calculations and ZIP export. There is no free-text prompt step: the original workflow infers metrics from the dataset profile. Its key is sent directly to Google, is never persisted and is cleared after a run. No app-owned backend or shared provider key is required. A Python CI workflow exists; account billing limits remain unchanged, and this release does not claim a green remote run.
 
 ## Results
 
 The last full verified suite passed 264 tests with demo dependencies installed. A focused follow-up passed 30 demo and end-to-end tests after the public-evidence/provenance edits. These checks cover real query execution, rejected/accepted builds, report structure, workflow routing and command exit behavior. Provider calls in tests are mocked: controlled substitute responses exercise the software mechanics, not the model's quality.
 
-The earlier fictional evidence export passed through the Python profiler, SQLite executor and report compiler. The interactive browser demo has its own local calculation and export implementation. Its 14 browser tests pass and exercise calculations, rejected plans and controlled provider responses. Generated ZIP contents and report JSON schemas were checked independently; browser testing covered sample/uploaded CSV builds, downloads and invalid-key handling. A browser-to-Google connection preflight was checked, but I have not verified a successful live generation using a valid visitor key. These checks do not establish AI metric quality or a fresh Power BI Desktop opening.
+The earlier fictional evidence export passed through the Python profiler, SQLite executor and report compiler. The interactive browser demo has its own local calculation and export implementation. Its 15 browser tests pass and exercise calculations, rejected plans and controlled provider responses. Generated ZIP contents and report JSON schemas were checked independently; browser testing covered sample/uploaded CSV builds, downloads and invalid-key handling. A browser-to-Google connection preflight was checked, but I have not verified a successful live generation using a valid visitor key. These checks do not establish AI metric quality or a fresh Power BI Desktop opening.
 
 Historical AI-run artifacts are in [the evidence bundle](evidence/v1/README.md). They differ from deterministic replays and reconstructed fixtures. Provider/model identities were not retained for some historical runs, and the HR fixture is a reconstruction rather than saved provider output. Historical screenshots remain illustrations of their recorded runs; they are not new Desktop verification.
 
@@ -74,11 +74,11 @@ Use the 12 fictional sample invoices or upload your own CSV, then build and insp
 - **Without a key:** the browser chooses a simple report plan and calculates it from your data. This is a deterministic simulation: the same input produces the same plan and results, without an AI call.
 - **With your Gemini key:** Google proposes the metrics, then the browser checks the plan, calculates the results and builds the project. Your provider account's usage limits and charges apply. A failed online request is shown as an error; it is not silently replaced with a simulation.
 
-Both modes download an editable Power BI Project (`.pbip`) ZIP, the actual input CSV and a run receipt containing the plan and calculated results. Extract the ZIP, save its `input.csv` at `C:\AgenticBIDemo\input.csv` (or change the file path in the included instructions), then open `BrowserDemo.pbip` in Windows Power BI Desktop and refresh. These are project source files, not a ready-made `.pbix` report. I have not freshly opened the browser-generated output in Desktop.
+Both modes download an editable Power BI Project (`.pbip`) ZIP, the actual input CSV and a run receipt containing the plan and calculated results. Right-click the ZIP and choose **Extract All**, then run the included `prepare_report.ps1` in PowerShell to set the CSV path (or use the manual path instructions). Open the extracted `BrowserDemo.pbip` in Windows Power BI Desktop and refresh. These are project source files, not a ready-made `.pbix` report. Do not open the `.pbip` from inside the ZIP: its report and semantic-model folders must be extracted alongside it. I have not freshly opened the browser-generated output in Desktop.
 
 I built this browser version so someone can try the idea without installing Python or signing in to my service. It supports one table, four to eight metrics and a fixed set of calculations. It is a smaller implementation than the Python workflow below, rather than a browser port of its full AI review workflow. The sample is fictional data, not the Chinook dataset used by the local examples. The source repository is now public.
 
-The CSV stays in your browser. Online planning sends Google your report goal and column metadata: names, types, missing-value counts, distinct-value counts and row count. It sends no row samples or minimum/maximum values. Column names and counts can still be sensitive. The key goes directly to Google in a request header, is never saved and is cleared after each run. See [browser-demo setup and limits](web-demo/README.md).
+The CSV stays in your browser. Online planning sends Google column metadata: names, types, missing-value counts, distinct-value counts and row count. It sends no row samples or minimum/maximum values. Column names and counts can still be sensitive. The key goes directly to Google in a request header, is never saved and is cleared after each run. See [browser-demo setup and limits](web-demo/README.md).
 
 ## Run locally
 
@@ -128,7 +128,7 @@ See [STRUCTURE.md](STRUCTURE.md) for the detailed tree and [compiler reference](
 - One table at a time; no joins between tables. Python SQL is validated for SQLite. The browser accepts supported metric operations rather than arbitrary queries.
 - The Python report compiler supports a declared set of aggregate/query shapes and four visual types. A build with fewer than four usable visuals is rejected. The browser supports four to eight metrics using sum, average, count, minimum, maximum or distinct count, displayed as cards, bars, lines or tables.
 - Proposed metrics must still make business sense. A valid query does not prove a useful metric or a reliable AI reviewer.
-- Python metric generation receives column metadata; its review step receives sampled result rows. The whole Python live workflow is not metadata-only. The browser's online planner sends only the disclosed metadata and goal.
+- Python metric generation receives column metadata; its review step receives sampled result rows. The whole Python live workflow is not metadata-only. The browser's online planner sends only the disclosed metadata.
 - Output is a Power BI Project (`.pbip`), a folder of report/model files. Windows and Power BI Desktop are needed to open it. The compiled model contains an absolute CSV path; relocate that path or keep the input at the documented location, then refresh. See the public example's explicit download instructions.
 - No Power BI Service deployment, production adoption, multi-user service or general reflection-success rate is claimed.
 

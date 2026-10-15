@@ -26,10 +26,11 @@ test('online request uses header credential and metadata only; returned AI plan 
       assert.ok(!options.body.includes('"min":'));
       assert.ok(!options.body.includes('"max":'));
       assert.ok(!options.body.includes('sampleRows'));
-      assert.ok(options.body.includes('Compare countries'));
+      assert.ok(!options.body.includes('goal'));
+      assert.ok(options.body.includes('COLUMN_METADATA_JSON'));
       return answer({...plan, title:'Provider proposed report'});
     };
-    const result = await generateOnline(profile, sentinel, undefined, 'Compare countries');
+    const result = await generateOnline(profile, sentinel);
     assert.equal(result.title, 'Provider proposed report');
     const built = runSpec(parseCSV(DEFAULT_CSV), result);
     assert.equal(built.results.find(r=>r.name==='Total Total').rows[0].value,258);
@@ -69,6 +70,6 @@ test('cancelled request ends and no provider error body is exposed', async () =>
   try {
     globalThis.fetch=async(_url, options)=>{assert.ok(options.signal.aborted);throw new Error('test');};
     const controller=new AbortController();controller.abort();
-    await assert.rejects(generateOnline(profile,'test',undefined,'',controller.signal),/cancelled/);
+    await assert.rejects(generateOnline(profile,'test',undefined,controller.signal),/cancelled/);
   } finally {globalThis.fetch=previous;}
 });

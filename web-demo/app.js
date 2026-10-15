@@ -15,7 +15,7 @@ function table(headers, rows) {
   for (const row of rows) { const rowEl = el('tr'); for (const value of row) rowEl.append(el('td', String(value ?? ''))); body.append(rowEl); }
   table.append(body); return table;
 }
-function payloadPreview() { $('payload-preview').textContent = JSON.stringify({ goal: $('goal').value.trim(), metadata: providerProfile(profile) }, null, 2); }
+function payloadPreview() { $('payload-preview').textContent = JSON.stringify({ metadata: providerProfile(profile) }, null, 2); }
 function setDataset(text, name, sample = false) {
   const parsed = parseCSV(text), nextProfile = profileCSV(parsed);
   dataset = parsed; profile = nextProfile; fileName = name;
@@ -36,7 +36,7 @@ function updateMode() {
 function progress(message, percentage) { $('progress-text').textContent = message; $('progress-fill').style.width = `${percentage}%`; }
 function setRunning(value) {
   running = value; $('run-button').disabled = value; $('csv-file').disabled = value; $('sample-button').disabled = value;
-  $('api-key').disabled = value; $('provider').disabled = value; $('goal').disabled = value; $('clear-key').disabled = value;
+  $('api-key').disabled = value; $('provider').disabled = value; $('clear-key').disabled = value;
   $('progress').hidden = !value; $('cancel-button').hidden = !value;
 }
 function download(bytes, name, type) {
@@ -79,7 +79,6 @@ $('csv-file').addEventListener('change', async (event) => {
 });
 $('sample-button').addEventListener('click', () => { $('csv-file').value = ''; setDataset(DEFAULT_CSV, 'sample.csv', true); });
 $('api-key').addEventListener('input', () => { updateMode(); invalidateResults(); });
-$('goal').addEventListener('input', () => { payloadPreview(); invalidateResults(); });
 $('provider').addEventListener('input', invalidateResults);
 $('clear-key').addEventListener('click', () => { $('api-key').value = ''; updateMode(); invalidateResults(); });
 $('cancel-button').addEventListener('click', () => abortController?.abort());
@@ -93,12 +92,12 @@ $('builder').addEventListener('submit', async (event) => {
   try {
     progress('1 of 3 · Checking the column profile', 20); await pause();
     progress(mode === 'online' ? '2 of 3 · Asking Gemini for a report plan' : '2 of 3 · Choosing a local report plan', 45);
-    const spec = mode === 'online' ? await generateOnline(profile, $('api-key').value.trim(), $('provider').value.trim(), $('goal').value.trim(), abortController.signal) : generateOfflineSpec(profile);
+    const spec = mode === 'online' ? await generateOnline(profile, $('api-key').value.trim(), $('provider').value.trim(), abortController.signal) : generateOfflineSpec(profile);
     if (abortController.signal.aborted) throw new DOMException('Request cancelled', 'AbortError');
     progress('3 of 3 · Calculating results and building your project', 75); await pause();
     output = runSpec(dataset, spec);
     const csvHash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(dataset.csvText)))].map(b => b.toString(16).padStart(2, '0')).join('');
-    receipt = { createdAt: new Date().toISOString(), mode, provider: mode === 'online' ? 'Google Gemini' : null, model: mode === 'online' ? $('provider').value.trim() : null, inputFile: fileName, rowCount: profile.rowCount, profile, goal: $('goal').value.trim(), spec: output.spec, results: output.results, warnings: output.warnings ?? [], limitations: ['Browser implementation; no Power BI Desktop rendering verified.', 'Online planning receives profile metadata and goal only; no CSV rows.', 'Offline planning is deterministic and does not call AI.'] };
+    receipt = { createdAt: new Date().toISOString(), mode, provider: mode === 'online' ? 'Google Gemini' : null, model: mode === 'online' ? $('provider').value.trim() : null, inputFile: fileName, rowCount: profile.rowCount, profile, spec: output.spec, results: output.results, warnings: output.warnings ?? [], limitations: ['Browser implementation; no Power BI Desktop rendering verified.', 'Online planning receives profile metadata only; no CSV rows.', 'Offline planning is deterministic and does not call AI.'] };
     receipt.inputCsvSha256 = csvHash;
     receipt.inputCsvPath = 'input.csv';
     output.files['run-receipt.json'] = JSON.stringify(receipt, null, 2);
