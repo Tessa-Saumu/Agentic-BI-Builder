@@ -12,7 +12,7 @@ I built this static demo so someone can upload a CSV, inspect calculated metrics
 4. Right-click the downloaded ZIP and choose **Extract All**. Opening the `.pbip` inside the compressed folder extracts only that pointer file; the report and model folders must be beside it. Run `prepare_report.ps1` from the extracted folder to update the CSV path automatically, or save `input.csv` as `C:\AgenticBIDemo\input.csv`, creating the folder, or change `File.Contents` in `BrowserDemo.SemanticModel/definition/tables/Data.tmdl` to your CSV path.
 5. Open `BrowserDemo.pbip` in Windows Power BI Desktop and refresh. Follow the included `OPEN_IN_POWER_BI.txt` instructions if your Desktop version requires project preview settings.
 
-The download is a Power BI Project (`.pbip`): editable source files for the report and data model. It is not a `.pbix` binary. Power BI recalculates the measures when you refresh the CSV. I have not freshly verified opening these browser-generated files in Desktop.
+The download is a Power BI Project (`.pbip`): editable source files for the report and data model. It is not a `.pbix` binary. Power BI recalculates the measures when you refresh the CSV. On 15 October 2026, the repaired fictional sample was opened and refreshed in Power BI Desktop: 12 rows, total 258, average 21.5 and a rendered country chart. Its published ZIP matched the native-checked project. This verifies that sample, not arbitrary reports.
 
 ## How the two modes work
 

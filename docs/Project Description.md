@@ -1,3 +1,5 @@
+> Historical technical project specification. Objectives and intended capabilities below are design goals, not evidence of general report validity or production adoption. See [the current README](../README.md) for implemented scope, contribution boundaries and the verified fictional Desktop sample.
+
 # Project Description — Agentic BI Builder
 
 ## Overview
