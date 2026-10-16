@@ -10,8 +10,6 @@ Starting a business-intelligence report means inspecting a dataset, choosing use
 
 I implemented the workflow, its typed data contracts, query execution, report compiler and tests. A typed contract defines the fields and values each step must provide. The compiler converts supported query patterns into Power BI's report and data-model files. Unsupported calculations are rejected rather than guessed.
 
-Mentor review and hardening contributions are retained in Git history. This is mentored individual implementation, not evidence that I wrote every supporting line without help.
-
 I also maintain a smaller static browser demo for CSV uploads, online metric planning or offline simulation, local calculations and project downloads. The public version demonstrates the constrained flow rather than the whole Python application.
 
 ## Architecture
@@ -57,13 +55,13 @@ The browser is static HTML/JavaScript, with CSV parsing, plan validation, calcul
 
 ## Results
 
-The last full verified suite passed 264 tests with demo dependencies installed. A focused follow-up passed 30 demo and end-to-end tests after the public-evidence/provenance edits. These checks cover real query execution, rejected/accepted builds, report structure, workflow routing and command exit behavior. Provider calls in tests are mocked: controlled substitute responses exercise the software mechanics, not the model's quality.
+The pipeline produces an **editable Power BI project** from supported single-table inputs, including report structure, visuals, DAX measures and semantic-model files. An analyst can inspect the generated calculations and continue editing the report in Power BI Desktop.
 
-The earlier fictional evidence export passed through the Python profiler, SQLite executor and report compiler. The interactive browser demo has its own local calculation and export implementation. Its 15 browser tests pass and exercise calculations, rejected plans and controlled provider responses. Generated ZIP contents and report JSON schemas were checked independently; browser testing covered sample/uploaded CSV builds, downloads and invalid-key handling. A browser-to-Google connection preflight was checked, but I have not verified a successful live generation using a valid visitor key. These automated checks do not establish AI metric quality. Separately, the repaired fictional sample was opened and refreshed in Power BI Desktop on 15 October 2026: 12 rows, total 258, average 21.5 and a rendered country chart. The published sample ZIP matched that native-checked project; this does not establish that arbitrary generated reports will open correctly. The repair verification passed 147 focused Python tests and 15 Node tests with mocked provider calls.
+Typed validation, executed SQL and a bounded review/retry stage catch invalid outputs before compilation. Unsupported calculations fail explicitly. This connects AI metric proposals to executable calculations and native reporting artifacts; structural checks do not establish that every proposed metric is useful.
 
-Historical AI-run artifacts are in [the evidence bundle](evidence/v1/README.md). They differ from deterministic replays and reconstructed fixtures. Provider/model identities were not retained for some historical runs, and the HR fixture is a reconstruction rather than saved provider output. Historical screenshots remain illustrations of their recorded runs; they are not new Desktop verification.
+The recorded fictional sample was opened and refreshed in Power BI Desktop on **15 October 2026**, and its published ZIP matched the checked project. Native verification covers that sample only, not arbitrary generated reports. The browser demo also generates downloadable projects from supported uploaded CSVs.
 
-The browser sample contains **12 fictional invoices**. Independently checked sample revenue is **258**, split between Ghana (**135**) and Kenya (**123**), with an average of **3 tracks** per invoice. These are test-data calculations, not business impact. The browser supports **four to eight metrics** per plan; its calculation tests and downloads are distinct from Python workflow tests.
+See the [verification record](docs/verification_record.md) for test counts, sample arithmetic, repair details and provenance; the [historical evidence bundle](evidence/v1/README.md) for recorded runs; and the [compiler reference](docs/pbir_reference.md) for supported output. Provider calls in automated tests are mocked, and successful live generation with a valid browser key remains unverified.
 
 ## Demo
 
@@ -74,7 +72,7 @@ Use the 12 fictional sample invoices or upload your own CSV, then build and insp
 - **Without a key:** the browser chooses a simple report plan and calculates it from your data. This is a deterministic simulation: the same input produces the same plan and results, without an AI call.
 - **With your Gemini key:** Google proposes the metrics, then the browser checks the plan, calculates the results and builds the project. Your provider account's usage limits and charges apply. A failed online request is shown as an error; it is not silently replaced with a simulation.
 
-Both modes download an editable Power BI Project (`.pbip`) ZIP, the actual input CSV and a run receipt containing the plan and calculated results. Right-click the ZIP and choose **Extract All**, then run the included `prepare_report.ps1` in PowerShell to set the CSV path (or use the manual path instructions). Open the extracted `BrowserDemo.pbip` in Windows Power BI Desktop and refresh. These are project source files, not a ready-made `.pbix` report. Do not open the `.pbip` from inside the ZIP: its report and semantic-model folders must be extracted alongside it. The repaired fictional sample was opened and refreshed in Power BI Desktop on 15 October 2026; its published ZIP matched the checked project.
+Both modes download an editable Power BI Project (`.pbip`) ZIP, the actual input CSV and a run receipt containing the plan and calculated results. Right-click the ZIP and choose **Extract All**, then run the included `prepare_report.ps1` in PowerShell to set the CSV path (or use the manual path instructions). Open the extracted `BrowserDemo.pbip` in Windows Power BI Desktop and refresh. These are project source files, not a ready-made `.pbix` report. Do not open the `.pbip` from inside the ZIP: its report and semantic-model folders must be extracted alongside it. The recorded fictional sample was opened and refreshed in Power BI Desktop on 15 October 2026; its published ZIP matched the checked project.
 
 I built this browser version so someone can try the idea without installing Python or signing in to my service. It supports one table, four to eight metrics and a fixed set of calculations. It is a smaller implementation than the Python workflow below, rather than a browser port of its full AI review workflow. The sample is fictional data, not the Chinook dataset used by the local examples. The source repository is now public.
 
@@ -132,7 +130,7 @@ See [STRUCTURE.md](STRUCTURE.md) for the detailed tree and [compiler reference](
 - Output is a Power BI Project (`.pbip`), a folder of report/model files. Windows and Power BI Desktop are needed to open it. The compiled model contains an absolute CSV path; relocate that path or keep the input at the documented location, then refresh. See the public example's explicit download instructions.
 - No Power BI Service deployment, production adoption, multi-user service or general reflection-success rate is claimed.
 
-This is a mentored portfolio prototype without established production adoption or measured business time savings. Historical provider identities are incomplete and reconstructed fixtures remain labeled. Successful live generation with a valid browser key remains unverified. Desktop opening and refresh are verified for the repaired fictional sample only.
+This is a mentored portfolio prototype without established production adoption or measured business time savings. Historical provider identities are incomplete and reconstructed fixtures remain labeled. Successful live generation with a valid browser key remains unverified. Desktop opening and refresh are verified for the recorded fictional sample only.
 
 ## What I would improve next
 
